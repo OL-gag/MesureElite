@@ -2,8 +2,8 @@
   "buildCommand": "npm run build",
   "outputDirectory": ".next",
   "env": {
-    "NEXT_PUBLIC_NOMINATIM_BASE_URL": "@nominatim_url",
-    "NEXT_PUBLIC_OSRM_BASE_URL": "@osrm_url"
+    "NEXT_PUBLIC_NOMINATIM_BASE_URL": "https://nominatim.openstreetmap.org",
+    "NEXT_PUBLIC_OSRM_BASE_URL": "https://router.project-osrm.org/route/v1/car"
   },
   "git": {
     "deploymentEnabled": {
