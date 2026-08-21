@@ -1,0 +1,13 @@
+{
+  "buildCommand": "npm run build",
+  "outputDirectory": ".next",
+  "env": {
+    "NEXT_PUBLIC_NOMINATIM_BASE_URL": "@nominatim_url",
+    "NEXT_PUBLIC_OSRM_BASE_URL": "@osrm_url"
+  },
+  "git": {
+    "deploymentEnabled": {
+      "main": true
+    }
+  }
+}
