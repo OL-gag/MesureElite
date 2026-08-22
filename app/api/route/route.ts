@@ -47,8 +47,14 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       }
     }
 
+    // Ensure displayName is always present (required for OSRM)
+    const validatedWaypoints = body.waypoints.map((wp, i) => ({
+      ...wp,
+      displayName: wp.displayName || `Point ${i + 1}`,
+    }))
+
     // Calculate route
-    const route = await calculateRoute(body.waypoints)
+    const route = await calculateRoute(validatedWaypoints)
 
     if (route.status === 'failed') {
       return NextResponse.json(
