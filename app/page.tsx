@@ -37,7 +37,7 @@ export default function Home() {
           id: `wp-${index}`,
           lat: parseFloat(r.lat),
           lon: parseFloat(r.lon),
-          displayName: r.displayName || `Address ${index + 1}`,
+          displayName: String(r.displayName || `Address ${index + 1}`),
         }
       })
 
