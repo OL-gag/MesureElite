@@ -60,7 +60,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     if (route.status === 'failed') {
       return NextResponse.json(
-        { error: route.error || 'Routing calculation failed' },
+        {
+          error: route.error || 'Routing calculation failed',
+          debug: `Sent ${validatedWaypoints.length} waypoints to OSRM`
+        },
         { status: 400 }
       )
     }
