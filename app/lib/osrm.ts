@@ -84,10 +84,15 @@ export async function calculateRoute(
     if (!response.ok) {
       const text = await response.text()
       console.error('[OSRM] HTTP error response:', response.status, text)
-      throw new Error(`OSRM HTTP ${response.status}: ${text}`)
+      throw new Error(`OSRM HTTP ${response.status}: Bad coordinates or unreachable waypoints. Response: ${text.substring(0, 200)}`)
     }
 
-    const osrmData = (await response.json()) as OSRMRouteResponse
+    let osrmData: OSRMRouteResponse
+    try {
+      osrmData = (await response.json()) as OSRMRouteResponse
+    } catch (e) {
+      throw new Error(`OSRM response not JSON: ${await response.text()}`)
+    }
     console.log('[OSRM] Response data:', osrmData)
 
     if (osrmData.code !== 'Ok') {
