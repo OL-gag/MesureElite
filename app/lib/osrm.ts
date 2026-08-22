@@ -99,9 +99,12 @@ export async function calculateRoute(
       ? ((originalDistances.total - totalDistance) / originalDistances.total) * 100
       : 0
 
+    const routeId = `route-${Date.now()}`
+
     // Create segments from route legs
     const segments = route.legs.map((leg, index) => ({
       id: `seg-${index}`,
+      routeId,
       fromWaypoint: waypoints[index].id,
       toWaypoint: waypoints[(index + 1) % waypoints.length].id,
       sequence: index + 1,
@@ -113,7 +116,7 @@ export async function calculateRoute(
     // Create waypoints array with returned order
     const resultWaypoints = waypoints.map((wp, index) => ({
       id: wp.id,
-      routeId: `route-${Date.now()}`,
+      routeId,
       originalAddressId: wp.id,
       sequence: index + 1,
       lat: wp.lat,
@@ -133,7 +136,7 @@ export async function calculateRoute(
     }
 
     return {
-      id: `route-${Date.now()}`,
+      id: routeId,
       waypoints: resultWaypoints,
       segments,
       totalDistance,
