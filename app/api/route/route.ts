@@ -55,16 +55,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     console.log('[API/route] Validated waypoints:', JSON.stringify(validatedWaypoints, null, 2))
 
-    // DEBUG: Return waypoints to see what we're working with
-    if (process.env.NODE_ENV === 'development' || true) {
-      return NextResponse.json({
-        debug: 'waypoints received',
-        waypointCount: validatedWaypoints.length,
-        waypoints: validatedWaypoints,
-        coordinatesString: validatedWaypoints.map((wp: any) => `${wp.lon},${wp.lat}`).join(';'),
-      })
-    }
-
     // Calculate route
     const route = await calculateRoute(validatedWaypoints)
 
