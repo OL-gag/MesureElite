@@ -69,31 +69,21 @@ export async function calculateRoute(
   try {
     // Format coordinates for OSRM: lon1,lat1;lon2,lat2;...
     const coordinates = waypoints.map((wp) => `${wp.lon},${wp.lat}`).join(';')
-    console.log('[OSRM] Waypoints:', waypoints)
-    console.log('[OSRM] Coordinates string:', coordinates)
 
     // Calculate original distance (baseline for optimization gain)
     const originalDistances = calculateOriginalDistance(waypoints)
 
     // Call OSRM API
     const url = `${OSRM_BASE_URL}/route/v1/car/${coordinates}?overview=full&geometries=geojson&steps=true`
-    console.log('[OSRM] URL:', url)
 
     const response = await fetchWithRetry(url)
 
     if (!response.ok) {
       const text = await response.text()
-      console.error('[OSRM] HTTP error response:', response.status, text)
-      throw new Error(`OSRM HTTP ${response.status}: Bad coordinates or unreachable waypoints.\nURL: ${url}\nResponse: ${text.substring(0, 200)}`)
+      throw new Error(`OSRM HTTP ${response.status}: Bad coordinates or unreachable waypoints. Response: ${text.substring(0, 200)}`)
     }
 
-    let osrmData: OSRMRouteResponse
-    try {
-      osrmData = (await response.json()) as OSRMRouteResponse
-    } catch (e) {
-      throw new Error(`OSRM response not JSON: ${await response.text()}`)
-    }
-    console.log('[OSRM] Response data:', osrmData)
+    const osrmData = (await response.json()) as OSRMRouteResponse
 
     if (osrmData.code !== 'Ok') {
       if (osrmData.code === 'NoRoute') {
