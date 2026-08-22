@@ -30,13 +30,25 @@ export default function Home() {
 
       // Create waypoints for routing (MUST have lat/lon from geocoding)
       const waypoints = validResults.map((r: any, index: number) => {
+        const lat = parseFloat(r.lat)
+        const lon = parseFloat(r.lon)
+
         if (!r.lat || !r.lon) {
           throw new Error(`Address ${index + 1} missing coordinates`)
         }
+
+        if (isNaN(lat) || isNaN(lon)) {
+          throw new Error(`Address ${index + 1} has invalid coordinates: lat=${r.lat}, lon=${r.lon}`)
+        }
+
+        if (lat < -90 || lat > 90 || lon < -180 || lon > 180) {
+          throw new Error(`Address ${index + 1} has out-of-bounds coordinates: lat=${lat}, lon=${lon}`)
+        }
+
         return {
           id: `wp-${index}`,
-          lat: parseFloat(r.lat),
-          lon: parseFloat(r.lon),
+          lat,
+          lon,
           displayName: String(r.displayName || `Address ${index + 1}`),
         }
       })
