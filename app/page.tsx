@@ -4,13 +4,13 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import AddressForm from './components/AddressForm'
 import ErrorBoundary from './components/ErrorBoundary'
-import { AddressInput, GeocodeResponse, Route } from './lib/types'
+import { AddressInput, GeocodeResponse } from './lib/types'
 
 export default function Home() {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
 
-  const handleFormSubmit = async (addresses: AddressInput[], geocodeResults: GeocodeResponse) => {
+  const handleFormSubmit = async (_addresses: AddressInput[], geocodeResults: GeocodeResponse) => {
     setLoading(true)
 
     try {

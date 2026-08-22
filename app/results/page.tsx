@@ -73,7 +73,7 @@ export default function Results() {
             🛣️ Optimized Route
           </h2>
           <div className="space-y-3">
-            {route.waypoints.map((waypoint, index) => {
+            {route.waypoints.map((waypoint) => {
               const segment = route.segments.find((s) => s.sequence === waypoint.sequence)
               return (
                 <div
