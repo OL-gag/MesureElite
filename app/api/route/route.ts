@@ -53,6 +53,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       displayName: wp.displayName || `Point ${i + 1}`,
     }))
 
+    console.log('[API/route] Validated waypoints:', JSON.stringify(validatedWaypoints, null, 2))
+
     // Calculate route
     const route = await calculateRoute(validatedWaypoints)
 
