@@ -83,21 +83,25 @@ export default function AddressForm({ onSubmit, loading = false }: AddressFormPr
         }
 
         // Create AddressInput objects (status will be set based on geocode results)
-        const addressInputs: AddressInput[] = filledAddresses.map((text, i) => ({
-          id: generateId(),
-          text,
-          order: i + 1,
-          isStartPoint: i === 0,
-          status: geocodeResults.results[i]?.status === 'valid' ? 'valid' : 'invalid',
-          geocodedCoords: geocodeResults.results[i]?.status === 'valid' ? {
-            lat: geocodeResults.results[i].lat,
-            lon: geocodeResults.results[i].lon,
-            displayName: geocodeResults.results[i].displayName,
-          } : undefined,
-          error: geocodeResults.results[i]?.error,
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        }))
+        const addressInputs: AddressInput[] = filledAddresses.map((text, i) => {
+          const result = geocodeResults.results[i]
+          const hasCoords = result?.status === 'valid' && result.lat !== undefined && result.lon !== undefined && result.displayName !== undefined
+          return {
+            id: generateId(),
+            text,
+            order: i + 1,
+            isStartPoint: i === 0,
+            status: result?.status === 'valid' ? 'valid' : 'invalid',
+            geocodedCoords: hasCoords ? {
+              lat: result.lat!,
+              lon: result.lon!,
+              displayName: result.displayName!,
+            } : undefined,
+            error: result?.error,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          }
+        })
 
         // Pass to parent
         onSubmit(addressInputs, geocodeResults)
