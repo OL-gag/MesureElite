@@ -14,16 +14,13 @@ export default function Home() {
     setLoading(true)
 
     try {
-      // Get valid addresses from geocode results
-      const validResults = (geocodeResults.results || []).filter((r: any) => r.status === 'valid')
+      // Get valid/ambiguous (usable) addresses from geocode results — AddressForm
+      // already surfaces per-field errors inline before submission is even possible.
+      const validResults = (geocodeResults.results || []).filter(
+        (r: any) => r.status === 'valid' || r.status === 'ambiguous'
+      )
 
       if (validResults.length < 2) {
-        const invalidAddrs = (geocodeResults.results || []).filter((r: any) => r.status !== 'valid')
-        if (invalidAddrs.length > 0) {
-          alert(`❌ Error: ${invalidAddrs.map((r: any) => r.error || 'Unknown error').join('\n')}`)
-        } else {
-          alert('Need at least 2 valid addresses to calculate route')
-        }
         setLoading(false)
         return
       }
@@ -87,7 +84,7 @@ export default function Home() {
             Find the Shortest Route
           </h2>
           <p className="text-xl text-slate-600 dark:text-slate-300 max-w-2xl mx-auto">
-            Enter 2-25 addresses and get the optimized route. Perfect for deliveries, road trips, or any multi-stop journey.
+            Enter a start/return address plus 2-20 stops and get the optimized route. Perfect for deliveries, road trips, or any multi-stop journey.
           </p>
         </section>
 

@@ -8,11 +8,20 @@
 
 **Input**: User description: "Prévoir la possibilité d'entrer facile 20 adresses et indiquer à l'utilisateur si l'adresse n'est pas valide"
 
+## Clarifications
+
+### Session 2026-08-23
+
+- Q: Le champ isolé pour l'adresse de départ/retour compte-t-il dans la limite de 20 adresses, ou s'ajoute-t-il en plus ? → A: Le point de départ/retour est séparé — la limite reste 20 adresses "arrêts" + 1 champ dédié (21 max au total)
+- Q: Le champ isolé « adresse de départ/retour » compte-t-il dans le minimum de 2 adresses valides requis pour lancer le calcul (FR-005) ? → A: Non — le minimum de 2 s'applique aux adresses d'arrêt seulement (départ obligatoire en plus) — total minimum 3 adresses
+- Q: Le champ départ/retour a-t-il les mêmes contrôles modifier/supprimer que les adresses d'arrêt (US3) ? → A: Non — il peut être modifié (texte remplacé) mais n'a pas de bouton "supprimer" ; il est toujours présent et obligatoire
+- Q: L'adresse de départ/retour doit-elle être remplie avant les adresses d'arrêt, ou l'ordre de saisie est-il libre ? → A: Ordre libre — seule la soumission finale exige que le départ et au moins 2 arrêts soient valides
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Saisir rapidement une liste d'adresses (Priority: P1)
 
-En tant qu'utilisateur, je peux saisir jusqu'à 20 adresses via une interface qui me permet d'entrer plusieurs adresses rapidement, sans friction — soit via un formulaire à champs multiples, soit via un champ texte où je liste les adresses ligne par ligne.
+En tant qu'utilisateur, je peux saisir jusqu'à 20 adresses d'arrêt (en plus de l'adresse de départ/retour saisie séparément dans son champ isolé, voir FR-001a) via une interface qui me permet d'entrer plusieurs adresses rapidement, sans friction — soit via un formulaire à champs multiples, soit via un champ texte où je liste les adresses ligne par ligne.
 
 **Why this priority**: C'est le cœur de la fonctionnalité — sans une saisie facile et rapide, l'utilisateur abandonnera la tâche. Le confort de saisie est critique pour l'adoption.
 
@@ -21,7 +30,7 @@ En tant qu'utilisateur, je peux saisir jusqu'à 20 adresses via une interface qu
 **Acceptance Scenarios**:
 
 1. **Given** l'interface de saisie vide, **When** l'utilisateur entre 10 adresses différentes (une par champ ou ligne), **Then** toutes les adresses sont enregistrées et prêtes pour le calcul de l'itinéraire.
-2. **Given** l'interface de saisie, **When** l'utilisateur appuie sur Tab/Entrée, **Then** un nouveau champ ou une nouvelle ligne s'ajoute automatiquement (jusqu'à 20 adresses max).
+2. **Given** l'interface de saisie, **When** l'utilisateur appuie sur Tab/Entrée, **Then** un nouveau champ ou une nouvelle ligne s'ajoute automatiquement (jusqu'à 20 adresses d'arrêt max, en plus du champ isolé départ/retour).
 3. **Given** une liste partiellement remplie, **When** l'utilisateur soumet le formulaire, **Then** les champs vides ou les lignes vides ne sont pas inclus dans le traitement.
 
 ---
@@ -54,32 +63,35 @@ En tant qu'utilisateur, je peux ajouter, supprimer ou modifier une adresse dans 
 
 1. **Given** une liste de 10 adresses, **When** l'utilisateur supprime la 5e adresse, **Then** la liste se réorganise (indices remis à jour) et les autres adresses sont intactes.
 2. **Given** une liste existante, **When** l'utilisateur ajoute une nouvelle adresse, **Then** elle s'intègre à la liste sans réinitialiser les autres champs.
+3. **Given** le champ isolé départ/retour rempli, **When** l'utilisateur modifie son contenu, **Then** la nouvelle valeur est validée sans affecter la liste des adresses d'arrêt ; ce champ n'offre pas d'option de suppression (il reste toujours affiché et obligatoire).
 
 ---
 
 ### Edge Cases
 
-- Que se passe-t-il si l'utilisateur tente de saisir plus de 20 adresses ? Le système doit bloquer ou afficher un avertissement clair.
+- Que se passe-t-il si l'utilisateur tente de saisir plus de 20 adresses d'arrêt (en plus de l'adresse de départ/retour) ? Le système doit bloquer ou afficher un avertissement clair.
 - Comment gère-t-on les adresses en double dans la liste saisie ? Faut-il les détecter et les signaler ?
 - Que se passe-t-il si l'utilisateur colle un bloc de texte (ex: adresses séparées par des sauts de ligne) ? Le système doit-il les parser automatiquement ?
-- Comment gérer les adresses partielles (ex: "Paris" sans rue) ? Accepter ou rejeter ?
+- Comment gérer les adresses partielles (ex: "Paris" sans rue) ? Aucune règle spéciale : elles suivent le même traitement que toute autre adresse (FR-002/FR-004) — acceptées si le géocodage résout une coordonnée unique, marquées ambiguës si plusieurs résultats distincts sont retournés, invalides si aucun résultat.
 
 ## Requirements *(mandatory)*
 
 ### Functional Requirements
 
-- **FR-001**: Le système DOIT permettre la saisie de 1 à 20 adresses via une interface conviviale (champs multiples ou texte multiligne au choix du produit).
+- **FR-001**: Le système DOIT permettre la saisie de 1 à 20 adresses d'arrêt via une interface conviviale (champs multiples ou texte multiligne au choix du produit).
+- **FR-001a**: Le système DOIT fournir un champ isolé et distinct pour l'adresse de départ/point de retour (première adresse du trajet en boucle fermée), séparé de la liste des adresses d'arrêt. Ce champ n'est pas compris dans la limite de 20 adresses d'arrêt. L'ordre de saisie entre ce champ et les adresses d'arrêt est libre (aucune contrainte de séquence n'est imposée avant la soumission).
 - **FR-002**: Le système DOIT valider chaque adresse saisie en temps réel ou à la soumission (géocodage).
 - **FR-003**: Le système DOIT signaler chaque adresse invalide ou non géolocalisable avec un message clair (ex: "Adresse non trouvée : [adresse]") sans bloquer le traitement des autres adresses.
 - **FR-004**: Pour les adresses ambiguës, le système DOIT proposer des suggestions ou demander une clarification (ex: "Ville manquante").
-- **FR-005**: Le système DOIT interdire la soumission si le nombre d'adresses valides est inférieur à 2.
+- **FR-005**: Le système DOIT interdire tout calcul d'itinéraire tant que l'adresse de départ/retour (FR-001a) n'est pas valide OU que moins de 2 adresses d'arrêt valides ne sont détectées. Le minimum total pour lancer le calcul est donc de 3 adresses valides (1 départ/retour + 2 arrêts).
 - **FR-006**: Le système DOIT permettre à l'utilisateur de modifier ou supprimer une adresse dans la liste sans ressaisir les autres.
 - **FR-007**: Le système DOIT ignorer les champs vides ou les lignes vides lors du traitement.
 - **FR-008**: Le système DOIT afficher le nombre total d'adresses valides vs invalides en temps réel.
-- **FR-009**: Le système DOIT proposer à l'utilisateur de lancer le calcul d'itinéraire seulement si au moins 2 adresses valides sont détectées.
+- **FR-009**: Le système DOIT refléter la règle de FR-005 en temps réel dans l'interface : le bouton de calcul est visuellement activé/désactivé selon l'état de validation courant, sans attendre une tentative de soumission pour informer l'utilisateur.
 
 ### Key Entities
 
+- **Adresse de départ/retour**: Adresse saisie dans le champ isolé, dédié, servant à la fois de point de départ et de point de retour du trajet en boucle fermée (voir spec 001-shortest-route-addresses, FR-005). Distincte de la liste des adresses d'arrêt et non comprise dans la limite de 20.
 - **Adresse (input)**: Entrée saisie par l'utilisateur, texte libre, peut être incomplète ou invalide avant validation.
 - **Adresse (valide)**: Adresse validée et géolocalisée, avec coordonnées (latitude/longitude) résolues.
 - **Erreur de validation**: Message d'erreur signalant une adresse invalide (non trouvée, ambiguë, etc.) avec suggestions de correction si applicable.
