@@ -1,10 +1,13 @@
 'use client'
 
+import dynamic from 'next/dynamic'
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import ErrorBoundary from '../components/ErrorBoundary'
 import { Route, GeocodeResponse } from '../lib/types'
 import { formatDistance, formatDuration, formatPercentage } from '../lib/utils'
+
+const RouteMap = dynamic(() => import('../components/RouteMap'), { ssr: false })
 
 export default function Results() {
   const router = useRouter()
@@ -65,6 +68,14 @@ export default function Results() {
               {formatPercentage(route.optimizationGain)} shorter
             </p>
           </div>
+        </section>
+
+        {/* Interactive Map */}
+        <section className="space-y-4">
+          <h2 className="text-2xl font-bold text-slate-900 dark:text-white">
+            🗺️ Route Map
+          </h2>
+          <RouteMap route={route} />
         </section>
 
         {/* Itinerary */}
