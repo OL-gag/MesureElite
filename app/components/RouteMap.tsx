@@ -4,6 +4,7 @@ import { useRef } from 'react'
 import { MapContainer, TileLayer, Marker, Popup, Polyline } from 'react-leaflet'
 import L from 'leaflet'
 import { Route } from '@/app/lib/types'
+import { useLanguage } from '@/app/lib/i18n/LanguageContext'
 import 'leaflet/dist/leaflet.css'
 
 interface RouteMapProps {
@@ -11,6 +12,7 @@ interface RouteMapProps {
 }
 
 export default function RouteMap({ route }: RouteMapProps) {
+  const { t } = useLanguage()
   const mapRef = useRef<any>(null)
 
   // Parse GeoJSON geometry to LatLng coordinates
@@ -61,7 +63,9 @@ export default function RouteMap({ route }: RouteMapProps) {
       <Marker key={wp.id} position={[wp.lat, wp.lon]} icon={icon}>
         <Popup>
           <div className="text-sm">
-            <strong>{isStart ? '🏁 Start: ' : `📍 Stop ${wp.sequence}: `}</strong>
+            <strong>
+              {isStart ? t('map.startPopupPrefix') : t('map.stopPopupPrefix', { sequence: wp.sequence })}
+            </strong>
             <p className="mb-2">{wp.displayName}</p>
             {segment && (
               <p className="text-xs text-slate-600">

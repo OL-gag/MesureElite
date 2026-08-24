@@ -167,12 +167,14 @@ export async function geocodeMultiple(addresses: string[]): Promise<GeocodeRespo
             error: ambiguous
               ? `Ambiguous address: "${address}" matched multiple distinct places. Please specify the city.`
               : undefined,
+            errorCode: ambiguous ? ('AMBIGUOUS' as const) : undefined,
           }
         } else {
           return {
             address,
             status: 'invalid' as const,
             error: `Address not found: "${address}". Please check spelling.`,
+            errorCode: 'ADDRESS_NOT_FOUND' as const,
           }
         }
       } catch (error) {
@@ -180,6 +182,7 @@ export async function geocodeMultiple(addresses: string[]): Promise<GeocodeRespo
           address,
           status: 'invalid' as const,
           error: error instanceof Error ? error.message : 'Geocoding failed',
+          errorCode: 'GEOCODING_FAILED' as const,
         }
       }
     })
@@ -191,6 +194,7 @@ export async function geocodeMultiple(addresses: string[]): Promise<GeocodeRespo
       address: '',
       status: 'invalid' as const,
       error: 'Geocoding request failed',
+      errorCode: 'GEOCODING_FAILED' as const,
     }
   })
 

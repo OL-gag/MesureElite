@@ -12,6 +12,7 @@ export interface AddressInput {
     displayName: string
   }
   error?: string
+  errorCode?: string
   alternatives?: {
     lat: number
     lon: number
@@ -91,9 +92,20 @@ export interface GeocodeResponse {
       displayName: string
     }[]
     error?: string
+    errorCode?: string
   }[]
   validCount: number
   invalidCount: number
+}
+
+// Shared shape for error bodies returned by /api/geocode and /api/route on
+// non-2xx responses. `errorCode` is additive — see
+// specs/004-fr-ca-localization/contracts/error-codes.md for the full table.
+export interface ApiErrorBody {
+  error: string
+  errorCode?: string
+  retryAfter?: number
+  debug?: string
 }
 
 export interface RouteRequest {

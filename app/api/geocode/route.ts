@@ -12,18 +12,21 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     // Validate input
     if (!body.addresses || !Array.isArray(body.addresses)) {
       return NextResponse.json(
-        { error: 'Missing or invalid addresses array' },
+        { error: 'Missing or invalid addresses array', errorCode: 'MISSING_ADDRESSES' },
         { status: 400 }
       )
     }
 
     if (body.addresses.length === 0) {
-      return NextResponse.json({ error: 'At least 1 address required' }, { status: 400 })
+      return NextResponse.json(
+        { error: 'At least 1 address required', errorCode: 'EMPTY_ADDRESSES' },
+        { status: 400 }
+      )
     }
 
     if (body.addresses.length > 25) {
       return NextResponse.json(
-        { error: 'Maximum 25 addresses allowed' },
+        { error: 'Maximum 25 addresses allowed', errorCode: 'TOO_MANY_ADDRESSES' },
         { status: 400 }
       )
     }
@@ -32,13 +35,13 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     for (const addr of body.addresses) {
       if (!addr.id || !addr.text || addr.order === undefined) {
         return NextResponse.json(
-          { error: 'Each address must have id, text, and order' },
+          { error: 'Each address must have id, text, and order', errorCode: 'INVALID_ADDRESS_FORMAT' },
           { status: 400 }
         )
       }
       if (addr.text.trim().length === 0 || addr.text.length > 200) {
         return NextResponse.json(
-          { error: 'Each address must be 1-200 characters' },
+          { error: 'Each address must be 1-200 characters', errorCode: 'INVALID_ADDRESS_FORMAT' },
           { status: 400 }
         )
       }
@@ -63,6 +66,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       return NextResponse.json(
         {
           error: 'Geocoding service temporarily rate-limited. Please try again in a moment.',
+          errorCode: 'RATE_LIMITED',
           retryAfter: 5,
         },
         { status: 429, headers: { 'Retry-After': '5' } }
@@ -73,6 +77,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json(
       {
         error: 'Geocoding service temporarily unavailable. Please try again in a moment.',
+        errorCode: 'SERVICE_UNAVAILABLE',
         retryAfter: 5,
       },
       { status: 500 }

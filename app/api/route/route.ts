@@ -12,21 +12,21 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     // Validate input
     if (!body.waypoints || !Array.isArray(body.waypoints)) {
       return NextResponse.json(
-        { error: 'Missing or invalid waypoints array' },
+        { error: 'Missing or invalid waypoints array', errorCode: 'MISSING_WAYPOINTS' },
         { status: 400 }
       )
     }
 
     if (body.waypoints.length < 2) {
       return NextResponse.json(
-        { error: 'At least 2 waypoints required' },
+        { error: 'At least 2 waypoints required', errorCode: 'TOO_FEW_WAYPOINTS' },
         { status: 400 }
       )
     }
 
     if (body.waypoints.length > 25) {
       return NextResponse.json(
-        { error: 'Maximum 25 waypoints allowed' },
+        { error: 'Maximum 25 waypoints allowed', errorCode: 'TOO_MANY_WAYPOINTS' },
         { status: 400 }
       )
     }
@@ -35,13 +35,13 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     for (const wp of body.waypoints) {
       if (!wp.id || wp.lat === undefined || wp.lon === undefined) {
         return NextResponse.json(
-          { error: 'Each waypoint must have id, lat, and lon' },
+          { error: 'Each waypoint must have id, lat, and lon', errorCode: 'INVALID_WAYPOINT' },
           { status: 400 }
         )
       }
       if (wp.lat < -90 || wp.lat > 90 || wp.lon < -180 || wp.lon > 180) {
         return NextResponse.json(
-          { error: 'Invalid coordinates for waypoint: ' + wp.id },
+          { error: 'Invalid coordinates for waypoint: ' + wp.id, errorCode: 'INVALID_COORDINATES' },
           { status: 400 }
         )
       }
@@ -60,6 +60,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       return NextResponse.json(
         {
           error: route.error || 'Routing calculation failed',
+          errorCode: 'ROUTING_FAILED',
           debug: `Sent ${validatedWaypoints.length} waypoints to OSRM`
         },
         { status: 400 }
@@ -82,6 +83,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       return NextResponse.json(
         {
           error: 'Routing service temporarily rate-limited. Please try again in a moment.',
+          errorCode: 'RATE_LIMITED',
           retryAfter: 5,
         },
         { status: 429, headers: { 'Retry-After': '5' } }
@@ -93,6 +95,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       return NextResponse.json(
         {
           error: 'Routing calculation timed out. Please try again.',
+          errorCode: 'TIMEOUT',
           retryAfter: 3,
         },
         { status: 503 }
@@ -103,6 +106,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json(
       {
         error: 'Routing service temporarily unavailable. Please try again in a moment.',
+        errorCode: 'SERVICE_UNAVAILABLE',
         retryAfter: 5,
       },
       { status: 500 }
