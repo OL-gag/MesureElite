@@ -68,7 +68,11 @@ export async function calculateRoute(
 
   try {
     // Format coordinates for OSRM: lon1,lat1;lon2,lat2;...
-    const coordinates = waypoints.map((wp) => `${wp.lon},${wp.lat}`).join(';')
+    // The trip is a closed loop (FR-005): append the start coordinate again at
+    // the end so OSRM also computes the final "last stop → start" leg, instead
+    // of stopping after the last waypoint.
+    const closedLoopWaypoints = [...waypoints, waypoints[0]]
+    const coordinates = closedLoopWaypoints.map((wp) => `${wp.lon},${wp.lat}`).join(';')
 
     // Calculate original distance (baseline for optimization gain)
     const originalDistances = calculateOriginalDistance(waypoints)
