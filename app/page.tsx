@@ -5,9 +5,12 @@ import { useRouter } from 'next/navigation'
 import AddressForm from './components/AddressForm'
 import ErrorBoundary from './components/ErrorBoundary'
 import { AddressInput, GeocodeResponse } from './lib/types'
+import { useLanguage } from './lib/i18n/LanguageContext'
+import { translateError } from './lib/i18n/translations'
 
 export default function Home() {
   const router = useRouter()
+  const { t } = useLanguage()
   const [loading, setLoading] = useState(false)
 
   // Restore the previously submitted addresses (if any) so the "← Edit Addresses"
@@ -73,7 +76,7 @@ export default function Home() {
 
       if (!routeResponse.ok) {
         const error = await routeResponse.json()
-        alert(`Route calculation failed: ${error.error}`)
+        alert(translateError(t, error.errorCode, error.error) || t('addressForm.errorGeocodingFailedGeneric'))
         setLoading(false)
         return
       }
@@ -85,7 +88,7 @@ export default function Home() {
       sessionStorage.setItem('geocodeResults', JSON.stringify(geocodeResults))
       router.push('/results')
     } catch (err) {
-      alert(`Error: ${err instanceof Error ? err.message : 'Unknown error'}`)
+      alert(err instanceof Error ? err.message : t('addressForm.errorSubmitFailed'))
       setLoading(false)
     }
   }
@@ -95,10 +98,10 @@ export default function Home() {
       <div className="space-y-8">
         <section className="text-center py-12">
           <h2 className="text-4xl font-bold text-slate-900 dark:text-white mb-4">
-            Find the Shortest Route
+            {t('home.title')}
           </h2>
           <p className="text-xl text-slate-600 dark:text-slate-300 max-w-2xl mx-auto">
-            Enter a start/return address plus 2-20 stops and get the optimized route. Perfect for deliveries, road trips, or any multi-stop journey.
+            {t('home.subtitle')}
           </p>
         </section>
 
@@ -106,10 +109,10 @@ export default function Home() {
           <div className="space-y-6">
             <div>
               <h3 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">
-                🗺️ Optimize Your Route
+                {t('home.cardTitle')}
               </h3>
               <p className="text-slate-600 dark:text-slate-400 mb-6">
-                Enter your addresses below to calculate the shortest possible route.
+                {t('home.cardIntro')}
               </p>
             </div>
 

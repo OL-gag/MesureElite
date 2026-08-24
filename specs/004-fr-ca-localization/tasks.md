@@ -41,10 +41,10 @@ No setup tasks required. This feature extends the existing Next.js project (spec
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete
 
-- [ ] T001 Create `app/lib/i18n/translations.ts`: `Locale` type (`'fr-CA' | 'en'`), `DEFAULT_LOCALE = 'fr-CA'`, and both dictionaries (`fr-CA`, `en`) with keys covering every namespace from research.md § Inventaire (`common.*`, `home.*`, `addressForm.*`, `results.*`, `map.*`, `errorBoundary.*`, `errors.*` — including all `errorCode` values from contracts/error-codes.md § Table des codes). The `fr-CA` values MUST use Canadian French terminology/phrasing (FR-007) — not France French; if unsure of a term, prefer the Québec Government's terminology bank (GDT) usage over informal guesses.
-- [ ] T002 Create `app/lib/i18n/LanguageContext.tsx`: `LanguageProvider` + `useLanguage()` hook exposing `{ locale, setLocale, t }` (data-model.md § LanguageContext) — initial state `DEFAULT_LOCALE`, reads `sessionStorage['language']` on mount (client-only, ignores `navigator.language` per FR-009), `setLocale` writes back to `sessionStorage` and updates `document.documentElement.lang` via effect. `t(key)` MUST fall back to the `fr-CA` value (not the raw key or an empty string) whenever `key` is missing from the active locale's dictionary (Edge Case: traduction manquante, data-model.md § Dictionnaire).
-- [ ] T003 [P] Add `errorCode?: string` to the relevant response item types in `app/lib/types.ts` (`GeocodeResponse.results[]` item, and the shared API error body shape) per contracts/error-codes.md
-- [ ] T004 Rework `app/layout.tsx`: keep it a Server Component with `<html lang="fr-CA">` static and the existing `metadata` export; extract the inline header into `app/components/AppHeader.tsx` and the inline footer into `app/components/AppFooter.tsx` (both new Client Components using `useLanguage()`); wrap `AppHeader`, `{children}`, `AppFooter` in `LanguageProvider`
+- [X] T001 Create `app/lib/i18n/translations.ts`: `Locale` type (`'fr-CA' | 'en'`), `DEFAULT_LOCALE = 'fr-CA'`, and both dictionaries (`fr-CA`, `en`) with keys covering every namespace from research.md § Inventaire (`common.*`, `home.*`, `addressForm.*`, `results.*`, `map.*`, `errorBoundary.*`, `errors.*` — including all `errorCode` values from contracts/error-codes.md § Table des codes). The `fr-CA` values MUST use Canadian French terminology/phrasing (FR-007) — not France French; if unsure of a term, prefer the Québec Government's terminology bank (GDT) usage over informal guesses.
+- [X] T002 Create `app/lib/i18n/LanguageContext.tsx`: `LanguageProvider` + `useLanguage()` hook exposing `{ locale, setLocale, t }` (data-model.md § LanguageContext) — initial state `DEFAULT_LOCALE`, reads `sessionStorage['language']` on mount (client-only, ignores `navigator.language` per FR-009), `setLocale` writes back to `sessionStorage` and updates `document.documentElement.lang` via effect. `t(key)` MUST fall back to the `fr-CA` value (not the raw key or an empty string) whenever `key` is missing from the active locale's dictionary (Edge Case: traduction manquante, data-model.md § Dictionnaire).
+- [X] T003 [P] Add `errorCode?: string` to the relevant response item types in `app/lib/types.ts` (`GeocodeResponse.results[]` item, and the shared API error body shape) per contracts/error-codes.md
+- [X] T004 Rework `app/layout.tsx`: keep it a Server Component with `<html lang="fr-CA">` static and the existing `metadata` export; extract the inline header into `app/components/AppHeader.tsx` and the inline footer into `app/components/AppFooter.tsx` (both new Client Components using `useLanguage()`); wrap `AppHeader`, `{children}`, `AppFooter` in `LanguageProvider`
 
 **Checkpoint**: The i18n system exists and is wired into the root layout; every component can now call `useLanguage()` / `t()`.
 
@@ -58,15 +58,15 @@ No setup tasks required. This feature extends the existing Next.js project (spec
 
 ### Implementation for User Story 1
 
-- [ ] T005 [US1] Replace hardcoded strings in `app/components/AddressForm.tsx` (labels, placeholders, buttons, status text, warnings) with `t('addressForm.*')` calls
-- [ ] T006 [US1] In `app/components/AddressForm.tsx`, replace direct display of `result.error` with `errorCode ? t('errors.' + errorCode) : result.error` (fallback to raw English text if `errorCode` is missing/unrecognized — Edge Case "traduction manquante")
-- [ ] T007 [US1] Add `errorCode` to each result object returned by `geocodeAddress`/`geocodeMultiple` in `app/lib/nominatim.ts` (`ADDRESS_NOT_FOUND`, `AMBIGUOUS`, `GEOCODING_FAILED` per contracts/error-codes.md)
-- [ ] T008 [US1] Add `errorCode` to the validation-error responses in `app/api/geocode/route.ts` (`MISSING_ADDRESSES`, `EMPTY_ADDRESSES`, `TOO_MANY_ADDRESSES`, `INVALID_ADDRESS_FORMAT`, `RATE_LIMITED`, `SERVICE_UNAVAILABLE`)
-- [ ] T009 [US1] Add `errorCode` to the validation/OSRM-error responses in `app/api/route/route.ts` (`MISSING_WAYPOINTS`, `TOO_FEW_WAYPOINTS`, `TOO_MANY_WAYPOINTS`, `INVALID_WAYPOINT`, `INVALID_COORDINATES`, `ROUTING_FAILED`, `RATE_LIMITED`, `TIMEOUT`, `SERVICE_UNAVAILABLE`)
-- [ ] T010 [US1] Replace hardcoded strings in `app/page.tsx` (headings, intro text) with `t('home.*')` calls
-- [ ] T011 [US1] Replace hardcoded strings in `app/results/page.tsx` (headings, labels, buttons) with `t('results.*')` calls; translate the `alert()` route-error text via `t('errors.' + errorCode)` (fallback to raw `error` text)
-- [ ] T012 [US1] Replace hardcoded strings in `app/components/RouteMap.tsx` (marker popups) and `app/components/ErrorBoundary.tsx` (fallback UI) with `t('map.*')` / `t('errorBoundary.*')` calls
-- [ ] T013 [P] [US1] Unit test dictionary completeness in `__tests__/unit/translations.test.ts` (every key present in `fr-CA` also exists in `en` and vice versa; no empty values)
+- [X] T005 [US1] Replace hardcoded strings in `app/components/AddressForm.tsx` (labels, placeholders, buttons, status text, warnings) with `t('addressForm.*')` calls
+- [X] T006 [US1] In `app/components/AddressForm.tsx`, replace direct display of `result.error` with `errorCode ? t('errors.' + errorCode) : result.error` (fallback to raw English text if `errorCode` is missing/unrecognized — Edge Case "traduction manquante")
+- [X] T007 [US1] Add `errorCode` to each result object returned by `geocodeAddress`/`geocodeMultiple` in `app/lib/nominatim.ts` (`ADDRESS_NOT_FOUND`, `AMBIGUOUS`, `GEOCODING_FAILED` per contracts/error-codes.md)
+- [X] T008 [US1] Add `errorCode` to the validation-error responses in `app/api/geocode/route.ts` (`MISSING_ADDRESSES`, `EMPTY_ADDRESSES`, `TOO_MANY_ADDRESSES`, `INVALID_ADDRESS_FORMAT`, `RATE_LIMITED`, `SERVICE_UNAVAILABLE`)
+- [X] T009 [US1] Add `errorCode` to the validation/OSRM-error responses in `app/api/route/route.ts` (`MISSING_WAYPOINTS`, `TOO_FEW_WAYPOINTS`, `TOO_MANY_WAYPOINTS`, `INVALID_WAYPOINT`, `INVALID_COORDINATES`, `ROUTING_FAILED`, `RATE_LIMITED`, `TIMEOUT`, `SERVICE_UNAVAILABLE`)
+- [X] T010 [US1] Replace hardcoded strings in `app/page.tsx` (headings, intro text) with `t('home.*')` calls
+- [X] T011 [US1] Replace hardcoded strings in `app/results/page.tsx` (headings, labels, buttons) with `t('results.*')` calls; translate the `alert()` route-error text via `t('errors.' + errorCode)` (fallback to raw `error` text)
+- [X] T012 [US1] Replace hardcoded strings in `app/components/RouteMap.tsx` (marker popups) and `app/components/ErrorBoundary.tsx` (fallback UI) with `t('map.*')` / `t('errorBoundary.*')` calls
+- [X] T013 [P] [US1] Unit test dictionary completeness in `__tests__/unit/translations.test.ts` (every key present in `fr-CA` also exists in `en` and vice versa; no empty values)
 - [ ] T014 [US1] Manual validation per `quickstart.md` Scénarios 1 (défaut français malgré navigateur anglais) et 4 (messages d'erreur traduits, contenu Nominatim non traduit, repli si code inconnu)
 
 **Checkpoint**: User Story 1 is fully functional and independently testable — the whole app defaults to French Canadian, including error messages, even without a working language switcher yet.
@@ -81,10 +81,10 @@ No setup tasks required. This feature extends the existing Next.js project (spec
 
 ### Implementation for User Story 2
 
-- [ ] T015 [US2] Create `app/components/LanguageSwitcher.tsx`: control exposing "Français" / "English", calling `setLocale` from `useLanguage()`
-- [ ] T016 [US2] Wire `LanguageSwitcher` into `app/components/AppHeader.tsx` so it's visible on every page (FR-002)
-- [ ] T017 [P] [US2] Unit test `LanguageContext` in `__tests__/unit/LanguageContext.test.tsx`: defaults to `'fr-CA'`, `setLocale` updates state and writes `sessionStorage['language']`, initial read ignores `navigator.language`
-- [ ] T018 [P] [US2] Integration test in `__tests__/integration/AddressForm.test.tsx` (extend existing suite): switching locale via `LanguageSwitcher` while stop/start address fields are filled does not clear their values (regression guard — same class of bug fixed post-spec-003)
+- [X] T015 [US2] Create `app/components/LanguageSwitcher.tsx`: control exposing "Français" / "English", calling `setLocale` from `useLanguage()`
+- [X] T016 [US2] Wire `LanguageSwitcher` into `app/components/AppHeader.tsx` so it's visible on every page (FR-002)
+- [X] T017 [P] [US2] Unit test `LanguageContext` in `__tests__/unit/LanguageContext.test.tsx`: defaults to `'fr-CA'`, `setLocale` updates state and writes `sessionStorage['language']`, initial read ignores `navigator.language`
+- [X] T018 [P] [US2] Integration test in `__tests__/integration/AddressForm.test.tsx` (extend existing suite): switching locale via `LanguageSwitcher` while stop/start address fields are filled does not clear their values (regression guard — same class of bug fixed post-spec-003)
 - [ ] T019 [US2] Manual validation per `quickstart.md` Scénario 2 — chronométrer la bascule pour confirmer SC-002 (< 1s), vérifier l'absence de rechargement de page, l'absence de perte de données, et que le retour au français fonctionne — et Scénario 6 (changement de langue pendant un calcul en cours : le calcul n'est ni interrompu ni relancé)
 
 **Checkpoint**: User Stories 1 AND 2 both work independently — French by default, and a working, non-destructive language switch.
@@ -99,8 +99,8 @@ No setup tasks required. This feature extends the existing Next.js project (spec
 
 ### Implementation for User Story 3
 
-- [ ] T020 [US3] Verify `LanguageProvider` (T004) sits at the root of `app/layout.tsx` so its state survives Next.js client-side navigation between `/` and `/results` without remounting or losing the selected locale
-- [ ] T021 [US3] Verify `app/results/page.tsx` (T011) renders using the already-active locale on mount, with no flash back to French when arriving from `/` with English already selected
+- [X] T020 [US3] Verify `LanguageProvider` (T004) sits at the root of `app/layout.tsx` so its state survives Next.js client-side navigation between `/` and `/results` without remounting or losing the selected locale
+- [X] T021 [US3] Verify `app/results/page.tsx` (T011) renders using the already-active locale on mount, with no flash back to French when arriving from `/` with English already selected
 - [ ] T022 [US3] Manual validation per `quickstart.md` Scénario 3 (anglais actif sur la page de résultats après navigation, et après retour à l'accueil via "← Edit Addresses")
 
 **Checkpoint**: All user stories (US1, US2, US3) are independently functional.
@@ -113,8 +113,8 @@ No setup tasks required. This feature extends the existing Next.js project (spec
 
 - [ ] T023 [P] Run the full `quickstart.md` validation (all 5 scenarios, both FR→EN and EN→FR directions) manually against `npm run dev`
 - [ ] T024 Regression check: confirm specs 001/002/003 flows (calcul d'itinéraire, carte interactive, saisie en masse d'adresses) still work correctly in both languages
-- [ ] T025 [P] `npx tsc --noEmit`, `next lint`, `next build`, and `npm test` all pass
-- [ ] T026 [P] Update `README.md` / `QUICKSTART.md` if they document a language assumption that no longer holds (optional, low priority)
+- [X] T025 [P] `npx tsc --noEmit`, `next lint`, `next build`, and `npm test` all pass
+- [X] T026 [P] Update `README.md` / `QUICKSTART.md` if they document a language assumption that no longer holds (optional, low priority) — checked, no such assumption found (only unrelated "Language: TypeScript" tech-stack entry)
 
 ---
 
