@@ -1,7 +1,13 @@
 import { geocodeMultiple } from '@/app/lib/nominatim'
 
 function mockNominatimResponse(
-  results: { lat: string; lon: string; display_name: string; importance?: number }[]
+  results: {
+    lat: string
+    lon: string
+    display_name: string
+    importance?: number
+    address?: { postcode?: string }
+  }[]
 ) {
   return {
     ok: true,
@@ -65,6 +71,44 @@ describe('geocodeMultiple — ambiguous classification', () => {
     )
 
     const response = await geocodeMultiple(['44 Rue des Jardins, Quebec, QC G1R 3Z1'])
+
+    expect(response.results[0].status).toBe('valid')
+  })
+
+  it('marks an address as valid when a same-name street exists in a different postal district, even with comparable importance (regression: FSA mismatch)', async () => {
+    // Reproduces a second real-world false positive: "49 Rue Saint-Louis,
+    // Québec, QC G1R 3Z2" was flagged ambiguous against same-named streets in
+    // Lévis and Granby whose Nominatim importance scores were close enough to
+    // slip past the importance-ratio check alone — the postal code the user
+    // typed (G1R) is in a completely different district than the alternates'
+    // own postcodes (G6V, J2G), which should rule them out.
+    ;(global.fetch as jest.Mock).mockResolvedValueOnce(
+      mockNominatimResponse([
+        {
+          lat: '46.81',
+          lon: '-71.21',
+          display_name: '49, Rue Saint-Louis, Vieux-Québec, Québec, G1R 4E7',
+          importance: 0.0000722,
+          address: { postcode: 'G1R 4E7' },
+        },
+        {
+          lat: '46.75',
+          lon: '-71.17',
+          display_name: '49, Rue Saint-Louis, Lévis (quartier), Lévis, Québec, G6V 4G1',
+          importance: 0.0000594,
+          address: { postcode: 'G6V 4G1' },
+        },
+        {
+          lat: '45.4',
+          lon: '-72.73',
+          display_name: '49, Rue Saint-Louis, Granby, Québec, J2G 7A2',
+          importance: 0.0000579,
+          address: { postcode: 'J2G 7A2' },
+        },
+      ])
+    )
+
+    const response = await geocodeMultiple(['49 Rue Saint-Louis, Quebec, QC G1R 3Z2'])
 
     expect(response.results[0].status).toBe('valid')
   })

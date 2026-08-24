@@ -213,18 +213,43 @@ function extractLocalityKey(displayName: string): string {
 // reasonably close in relevance to the top match. Without this, a precise,
 // unique address (e.g. with a postal code) could get flagged ambiguous just
 // because Nominatim's top-3 happened to include a same-named street in an
-// unrelated town with far lower importance — a false positive.
+// unrelated town with far lower importance — a false positive. Note: for
+// heritage street names in dense old-town cores (e.g. Vieux-Québec), Nominatim
+// often assigns comparably tiny importance scores to every match regardless
+// of relevance to the query, so this alone isn't always enough — see the FSA
+// check below.
 const MIN_RELATIVE_IMPORTANCE = 0.5
 
+// Extracts a Canadian postal code's Forward Sortation Area (first 3
+// characters, e.g. "G1R" from "G1R 3Z2") — reliably identifies the postal
+// district/region and is far more precise than city-name text matching,
+// since province names ("Québec") are ambiguous between the city and the
+// province and don't help Nominatim's free-text search disambiguate.
+function extractFSA(text: string): string | null {
+  const match = text.match(/([A-Za-z]\d[A-Za-z])\s*\d[A-Za-z]\d/)
+  return match ? match[1].toUpperCase() : null
+}
+
 function isAmbiguousMatch(
+  query: string,
   top: { displayName: string; importance?: number },
-  alternatives: { displayName: string; importance?: number }[]
+  alternatives: { displayName: string; importance?: number; address?: NominatimAddressDetails }[]
 ): boolean {
   if (alternatives.length === 0) return false
   const topKey = extractLocalityKey(top.displayName)
+  const queryFSA = extractFSA(query)
 
   return alternatives.some((alt) => {
     if (extractLocalityKey(alt.displayName) === topKey) return false
+
+    // If the user typed a Canadian postal code and this alternate's own
+    // postcode is in a clearly different postal district, it's almost
+    // certainly not what they meant — just a same-named street elsewhere.
+    if (queryFSA && alt.address?.postcode) {
+      const altFSA = extractFSA(alt.address.postcode)
+      if (altFSA && altFSA !== queryFSA) return false
+    }
+
     // If importance is missing on either side, fall back to locality-only
     // comparison (can't judge relative confidence).
     if (top.importance === undefined || alt.importance === undefined) return true
@@ -241,7 +266,7 @@ export async function geocodeMultiple(addresses: string[]): Promise<GeocodeRespo
           const alternatives = result.alternatives || []
           // Ambiguity is judged on the raw display_name (see extractLocalityKey);
           // only the outward-facing displayName is shortened for readability.
-          const ambiguous = isAmbiguousMatch(result, alternatives)
+          const ambiguous = isAmbiguousMatch(address, result, alternatives)
           const status: 'valid' | 'ambiguous' = ambiguous ? 'ambiguous' : 'valid'
           return {
             address,
