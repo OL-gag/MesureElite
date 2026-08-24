@@ -8,7 +8,7 @@ const CACHE_KEY = 'nominatim_cache'
 const CACHE_TTL = 24 * 60 * 60 * 1000 // 24 hours
 
 interface CacheEntry {
-  result: { lat: number; lon: number; display_name: string }[]
+  result: { lat: number; lon: number; display_name: string; address?: Record<string, string> }[]
   timestamp: number
 }
 
@@ -73,28 +73,84 @@ async function fetchWithRetry(url: string, maxRetries = 3): Promise<Response> {
   throw lastError || new Error('Geocoding failed after retries')
 }
 
+// Structured components Nominatim returns when queried with addressdetails=1 —
+// used to build a short, readable display string instead of the full
+// comma-heavy display_name (which can include neighbourhood, borough,
+// agglomeration, region, and country all at once).
+interface NominatimAddressDetails {
+  house_number?: string
+  road?: string
+  neighbourhood?: string
+  suburb?: string
+  city_district?: string
+  city?: string
+  town?: string
+  village?: string
+  municipality?: string
+  state?: string
+  postcode?: string
+}
+
+interface GeocodeMatch {
+  lat: number
+  lon: number
+  displayName: string
+  address?: NominatimAddressDetails
+}
+
+// Builds a short, human-readable address (e.g. "501, Rue des Eaux-Fraîches,
+// Lac-Saint-Charles, Québec, G2G 2Z4") from Nominatim's structured address
+// components, falling back to the full display_name when those components
+// are unavailable. Only affects presentation — geocoding accuracy and the
+// ambiguity check (see isAmbiguousMatch) always use the raw display_name.
+function formatShortAddress(address: NominatimAddressDetails | undefined, fallback: string): string {
+  if (!address) return fallback
+
+  const street = [address.house_number, address.road].filter(Boolean).join(', ')
+  // Keep both the fine-grained locality (neighbourhood/suburb/borough) and the
+  // city proper — a suburb like "South of Market" alone would otherwise hide
+  // that the address is in San Francisco.
+  const localityFine = address.suburb || address.city_district || address.neighbourhood
+  const localityCity = address.city || address.town || address.village || address.municipality
+  const parts = [street, localityFine, localityCity, address.state, address.postcode].filter(
+    (p): p is string => Boolean(p && p.trim())
+  )
+  const deduped = parts.filter((p, i) => i === 0 || p !== parts[i - 1])
+
+  return deduped.length > 0 ? deduped.join(', ') : fallback
+}
+
 export async function geocodeAddress(address: string): Promise<{
   lat: number
   lon: number
   displayName: string
-  alternatives?: { lat: number; lon: number; displayName: string }[]
+  address?: NominatimAddressDetails
+  alternatives?: (GeocodeMatch & { displayName: string })[]
 } | null> {
   // Check cache first
   const cache = getCache()
   if (cache[address] && isCacheValid(cache[address].timestamp)) {
-    const cached = cache[address].result[0]
-    if (cached) {
+    const cachedResults = cache[address].result
+    const cachedTop = cachedResults[0]
+    if (cachedTop) {
       return {
-        lat: parseFloat(cached.lat.toString()),
-        lon: parseFloat(cached.lon.toString()),
-        displayName: cached.display_name,
+        lat: parseFloat(cachedTop.lat.toString()),
+        lon: parseFloat(cachedTop.lon.toString()),
+        displayName: cachedTop.display_name,
+        address: cachedTop.address,
+        alternatives: cachedResults.slice(1).map((r) => ({
+          lat: parseFloat(r.lat.toString()),
+          lon: parseFloat(r.lon.toString()),
+          displayName: r.display_name,
+          address: r.address,
+        })),
       }
     }
   }
 
   try {
     const query = encodeURIComponent(address)
-    const url = `${NOMINATIM_BASE_URL}/search?q=${query}&format=json&limit=3`
+    const url = `${NOMINATIM_BASE_URL}/search?q=${query}&format=json&limit=3&addressdetails=1`
 
     const response = await fetchWithRetry(url)
     const results = (await response.json()) as any[]
@@ -115,10 +171,12 @@ export async function geocodeAddress(address: string): Promise<{
       lat: parseFloat(topMatch.lat),
       lon: parseFloat(topMatch.lon),
       displayName: topMatch.display_name,
+      address: topMatch.address,
       alternatives: results.slice(1).map((r) => ({
         lat: parseFloat(r.lat),
         lon: parseFloat(r.lon),
         displayName: r.display_name,
+        address: r.address,
       })),
     }
   } catch (error) {
@@ -155,6 +213,8 @@ export async function geocodeMultiple(addresses: string[]): Promise<GeocodeRespo
         const result = await geocodeAddress(address)
         if (result) {
           const alternatives = result.alternatives || []
+          // Ambiguity is judged on the raw display_name (see extractLocalityKey);
+          // only the outward-facing displayName is shortened for readability.
           const ambiguous = isAmbiguousMatch(result, alternatives)
           const status: 'valid' | 'ambiguous' = ambiguous ? 'ambiguous' : 'valid'
           return {
@@ -162,8 +222,12 @@ export async function geocodeMultiple(addresses: string[]): Promise<GeocodeRespo
             status,
             lat: result.lat,
             lon: result.lon,
-            displayName: result.displayName,
-            alternatives: result.alternatives,
+            displayName: formatShortAddress(result.address, result.displayName),
+            alternatives: alternatives.map((alt) => ({
+              lat: alt.lat,
+              lon: alt.lon,
+              displayName: formatShortAddress(alt.address, alt.displayName),
+            })),
             error: ambiguous
               ? `Ambiguous address: "${address}" matched multiple distinct places. Please specify the city.`
               : undefined,
