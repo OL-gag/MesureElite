@@ -11,29 +11,32 @@ interface RouteMapProps {
   route: Route
 }
 
+// Cycles blue → green → amber across stops/segments so each leg of the route
+// is visually distinguishable on the map, especially where the path crosses
+// itself. Reuses the app's existing info/success/warning colors.
+const SEGMENT_COLORS = [
+  { bg: '#3b82f6', border: '#1d4ed8' }, // blue
+  { bg: '#10b981', border: '#047857' }, // green
+  { bg: '#f59e0b', border: '#b45309' }, // amber
+]
+
+function colorForSequence(sequence: number) {
+  return SEGMENT_COLORS[(sequence - 1) % SEGMENT_COLORS.length]
+}
+
 export default function RouteMap({ route }: RouteMapProps) {
   const { t } = useLanguage()
   const mapRef = useRef<any>(null)
 
-  // Prefer the actual road-following geometry from OSRM (GeoJSON [lon, lat]
-  // pairs, converted to Leaflet's [lat, lon] order). Falls back to straight
-  // lines between waypoints for routes calculated/cached before this field
-  // existed, or if OSRM returned no geometry.
-  const getCoordinates = (): [number, number][] => {
-    if (route?.geometry && route.geometry.length > 0) {
-      return route.geometry.map(([lon, lat]) => [lat, lon])
-    }
+  // The synthetic "return to start" waypoint shares its position (and id)
+  // with the real start marker — skip it so it doesn't render a duplicate
+  // marker stacked on top of the start.
+  const visibleWaypoints = route.waypoints.filter((wp) => !wp.isEndPoint)
 
-    if (!route || !route.waypoints || route.waypoints.length === 0) {
-      return []
-    }
-
-    return route.waypoints.map((wp) => [wp.lat, wp.lon])
-  }
-
-  // Create markers for waypoints
-  const markers = route.waypoints.map((wp, index) => {
+  const markers = visibleWaypoints.map((wp) => {
     const isStart = wp.isStartPoint
+    // Colored to match the segment arriving at this stop (see colorForSequence).
+    const color = isStart ? { bg: '#22c55e', border: '#16a34a' } : colorForSequence(wp.sequence - 1)
     const icon = L.divIcon({
       className: isStart ? 'map-marker-start' : 'map-marker-waypoint',
       html: `
@@ -47,9 +50,9 @@ export default function RouteMap({ route }: RouteMapProps) {
           font-weight: bold;
           font-size: 14px;
           color: white;
-          ${isStart ? 'background-color: #22c55e; border: 3px solid #16a34a;' : 'background-color: #3b82f6; border: 3px solid #1d4ed8;'}
+          background-color: ${color.bg}; border: 3px solid ${color.border};
         ">
-          ${isStart ? '⭐' : index + 1}
+          ${isStart ? '⭐' : wp.sequence}
         </div>
       `,
       iconSize: [40, 40],
@@ -80,8 +83,28 @@ export default function RouteMap({ route }: RouteMapProps) {
     )
   })
 
-  const polylineCoordinates = getCoordinates()
-  const bounds = L.latLngBounds(polylineCoordinates)
+  // One polyline per segment, colored to match its arrival marker, using the
+  // real road-following geometry for that leg. Falls back to a straight line
+  // between the two waypoints for routes calculated/cached before per-segment
+  // geometry existed.
+  const segmentLines = route.segments.map((segment) => {
+    const color = colorForSequence(segment.sequence)
+    let positions: [number, number][]
+
+    if (segment.geometry && segment.geometry.length > 0) {
+      positions = segment.geometry.map(([lon, lat]) => [lat, lon])
+    } else {
+      const from = route.waypoints.find((wp) => wp.id === segment.fromWaypoint && !wp.isEndPoint)
+      const to = route.waypoints.find((wp) => wp.id === segment.toWaypoint && !wp.isEndPoint) ?? route.waypoints[0]
+      positions = from && to ? [[from.lat, from.lon], [to.lat, to.lon]] : []
+    }
+
+    return (
+      <Polyline key={segment.id} positions={positions} color={color.bg} weight={4} opacity={0.85} />
+    )
+  })
+
+  const bounds = L.latLngBounds(visibleWaypoints.map((wp): [number, number] => [wp.lat, wp.lon]))
 
   return (
     <div className="w-full h-[28rem] sm:h-[32rem] lg:h-[36rem] rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700">
@@ -96,13 +119,7 @@ export default function RouteMap({ route }: RouteMapProps) {
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
         />
-        <Polyline
-          positions={polylineCoordinates}
-          color="#3b82f6"
-          weight={3}
-          opacity={0.7}
-          dashArray="5, 5"
-        />
+        {segmentLines}
         {markers}
       </MapContainer>
     </div>

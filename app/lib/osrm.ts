@@ -15,6 +15,9 @@ interface OSRMRouteResponse {
       distance: number
       duration: number
       summary: string
+      steps: Array<{
+        geometry: { type: 'LineString'; coordinates: [number, number][] }
+      }>
     }>
   }>
   waypoints?: Array<{
@@ -111,7 +114,11 @@ export async function calculateRoute(
 
     const routeId = `route-${Date.now()}`
 
-    // Create segments from route legs
+    // Create segments from route legs, concatenating each leg's step
+    // geometries into a single road-following path per segment (OSRM's
+    // top-level route.geometry is one combined line for the whole trip and
+    // doesn't expose per-leg boundaries, so this is built from the steps
+    // instead — needed to color each segment individually on the map).
     const segments = route.legs.map((leg, index) => ({
       id: `seg-${index}`,
       routeId,
@@ -120,6 +127,7 @@ export async function calculateRoute(
       sequence: index + 1,
       distance: leg.distance,
       duration: leg.duration,
+      geometry: leg.steps.flatMap((step) => step.geometry.coordinates),
     }))
 
     // Create waypoints array with returned order
@@ -140,6 +148,7 @@ export async function calculateRoute(
       resultWaypoints.push({
         ...resultWaypoints[0],
         sequence: resultWaypoints.length + 1,
+        isStartPoint: false,
         isEndPoint: true,
       })
     }
@@ -152,7 +161,6 @@ export async function calculateRoute(
       totalDuration,
       optimizationGain,
       status: 'success',
-      geometry: route.geometry?.coordinates ?? [],
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error'
