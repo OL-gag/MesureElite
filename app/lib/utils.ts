@@ -46,3 +46,12 @@ export function formatPercentage(value: number): string {
 export async function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
+
+// Splits pasted multiline text into individual address lines, trimming
+// whitespace and dropping empty lines (FR-001, FR-007).
+export function parseBulkAddressText(text: string): string[] {
+  return text
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0)
+}

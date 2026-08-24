@@ -1,113 +1,98 @@
-# Implementation Plan: [FEATURE]
+# Implementation Plan: Saisie facile et validation de multiples adresses
 
-**Branch**: `[###-feature-name]` | **Date**: [DATE] | **Spec**: [link]
+**Branch**: `003-bulk-address-entry` | **Date**: 2026-08-23 | **Spec**: [spec.md](spec.md)
 
-**Input**: Feature specification from `/specs/[###-feature-name]/spec.md`
-
-**Note**: This template is filled in by the `/speckit-plan` command; its definition describes the execution workflow.
+**Input**: Feature specification from `/specs/003-bulk-address-entry/spec.md`
 
 ## Summary
 
-[Extract from feature spec: primary requirement + technical approach from research]
+Améliorer le formulaire de saisie d'adresses existant (`app/components/AddressForm.tsx`, livré avec la spec 001) pour permettre une saisie facile de jusqu'à 20 adresses d'arrêt (avec collage multiligne auto-parsé), isoler l'adresse de départ/retour dans son propre champ (obligatoire, non supprimable — clarifiée le 2026-08-23), et remplacer les erreurs de géocodage actuellement affichées via `alert()` par un affichage inline par adresse (valide / invalide / ambiguë avec alternatives). Aucun changement de backend : les endpoints `/api/geocode` et `/api/route` de la spec 001 sont réutilisés tels quels.
 
 ## Technical Context
 
-<!--
-  ACTION REQUIRED: Replace the content in this section with the technical details
-  for the project. The structure here is presented in advisory capacity to guide
-  the iteration process.
--->
+**Language/Version**: TypeScript/JavaScript (Next.js 14, React, Node.js 18+ LTS) — stack existante, aucun ajout
 
-**Language/Version**: [e.g., Python 3.11, Swift 5.9, Rust 1.75 or NEEDS CLARIFICATION]
+**Primary Dependencies**:
+- Réutilisées (aucune nouvelle dépendance) : Next.js App Router, Tailwind CSS, `app/lib/nominatim.ts` (client Nominatim), `/api/geocode` (endpoint spec 001)
+- Testing : Jest + React Testing Library (déjà configurés, `__tests__/` actuellement vide)
 
-**Primary Dependencies**: [e.g., FastAPI, UIKit, LLVM or NEEDS CLARIFICATION]
+**Storage**: Aucune (état en mémoire côté React, comme spec 001 — voir data-model.md)
 
-**Storage**: [if applicable, e.g., PostgreSQL, CoreData, files or N/A]
+**Testing**: Jest + React Testing Library pour le parsing multiligne (`parseBulkAddressText`) et la classification `'ambiguous'` (`geocodeMultiple`)
 
-**Testing**: [e.g., pytest, XCTest, cargo test or NEEDS CLARIFICATION]
+**Target Platform**: Web browser via Vercel (inchangé)
 
-**Target Platform**: [e.g., Linux server, iOS 15+, WASM or NEEDS CLARIFICATION]
+**Project Type**: Application web Next.js unique (inchangé, pas de nouveau projet)
 
-**Project Type**: [e.g., library/cli/web-service/mobile-app/compiler/desktop-app or NEEDS CLARIFICATION]
+**Performance Goals**:
+- Affichage d'une erreur de validation < 1s après saisie (SC-004) — validation déclenchée au blur, pas à chaque frappe (voir research.md Décision 4)
+- Réactivité modifier/supprimer une adresse > 100ms, sans rechargement de page (SC-006)
+- Saisie de 15 adresses en < 2 minutes (SC-001)
 
-**Performance Goals**: [domain-specific, e.g., 1000 req/s, 10k lines/sec, 60 fps or NEEDS CLARIFICATION]
+**Constraints**:
+- API Nominatim publique limitée (~1 req/s, retry déjà géré dans `nominatim.ts`) → validation au blur, pas de géocodage à chaque frappe
+- Limite UI : 20 adresses d'arrêt + 1 adresse départ/retour isolée = 21 max (FR-001a), strictement inférieure à la limite backend existante de 25 (aucune modif backend nécessaire)
+- Minimum pour activer le calcul : départ valide + 2 arrêts valides = 3 adresses (FR-005/FR-009)
 
-**Constraints**: [domain-specific, e.g., <200ms p95, <100MB memory, offline-capable or NEEDS CLARIFICATION]
-
-**Scale/Scope**: [domain-specific, e.g., 10k users, 1M LOC, 50 screens or NEEDS CLARIFICATION]
+**Scale/Scope**: Amélioration ciblée d'un composant existant (`AddressForm.tsx`) + petite extension de `nominatim.ts`/`utils.ts` ; pas de nouvelle page, pas de nouvelle route API
 
 ## Constitution Check
 
 *GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*
 
-[Gates determined based on constitution file]
+| Principle | Status | Notes |
+|-----------|--------|-------|
+| **I. Deploy-Ready** | ✅ PASS | Aucun nouvel env var, aucune nouvelle dépendance ; build Next.js inchangé |
+| **II. Self-Contained** | ✅ PASS | Réutilise `/api/geocode` existant (déjà self-contained, API publique gratuite) |
+| **III. Shareable & Accessible** | ✅ PASS | Améliore l'accessibilité (erreurs inline au lieu d'`alert()` bloquant, plus clair pour l'utilisateur) |
+| **IV. Performance-First** | ✅ PASS | Validation au blur (pas à chaque frappe) limite les appels réseau ; pas de nouvelle dépendance bundle |
+| **V. Production Quality** | ✅ PASS | Remplace un pattern `alert()` fragile par une gestion d'erreur explicite inline ; TypeScript strict conservé |
+
+**GATE RESULT**: ✅ **PASS** — Aucune violation ; aucun `Complexity Tracking` requis (feature = extension d'un composant existant, pas de nouvelle architecture).
 
 ## Project Structure
 
 ### Documentation (this feature)
 
 ```text
-specs/[###-feature]/
-├── plan.md              # This file (/speckit-plan command output)
-├── research.md          # Phase 0 output (/speckit-plan command)
-├── data-model.md        # Phase 1 output (/speckit-plan command)
-├── quickstart.md        # Phase 1 output (/speckit-plan command)
-├── contracts/           # Phase 1 output (/speckit-plan command)
-└── tasks.md             # Phase 2 output (/speckit-tasks command - NOT created by /speckit-plan)
+specs/003-bulk-address-entry/
+├── plan.md              # This file
+├── research.md          # Phase 0 — décisions techniques (isolation du champ départ, limites, validation au blur, ambiguïté)
+├── data-model.md         # Phase 1 — état UI + extension de classification de statut
+├── quickstart.md         # Phase 1 — 8 scénarios de validation manuelle
+├── checklists/requirements.md  # Déjà existant (16/16 items conformes)
+└── tasks.md              # Phase 2 (généré par /speckit-tasks)
 ```
 
 ### Source Code (repository root)
-<!--
-  ACTION REQUIRED: Replace the placeholder tree below with the concrete layout
-  for this feature. Delete unused options and expand the chosen structure with
-  real paths (e.g., apps/admin, packages/something). The delivered plan must
-  not include Option labels.
--->
+
+**Structure existante réutilisée** — aucun nouveau dossier :
 
 ```text
-# [REMOVE IF UNUSED] Option 1: Single project (DEFAULT)
-src/
-├── models/
-├── services/
-├── cli/
-└── lib/
+app/
+├── components/
+│   └── AddressForm.tsx      # MODIFIÉ : champ isolé départ/retour, plafond 20 arrêts,
+│                             #   onPaste multiligne, statuts/erreurs inline, validation au blur
+├── lib/
+│   ├── nominatim.ts          # MODIFIÉ : geocodeAddress/geocodeMultiple classifient 'ambiguous'
+│   ├── utils.ts               # MODIFIÉ : + parseBulkAddressText(text): string[]
+│   └── types.ts                # INCHANGÉ (voir data-model.md, Décision 1)
+├── api/
+│   ├── geocode/route.ts        # INCHANGÉ (contrat spec 001 réutilisé tel quel)
+│   └── route/route.ts           # INCHANGÉ
+└── page.tsx                      # MODIFIÉ : retrait des alert() de géocodage
+                                   #   (gérés désormais par AddressForm)
 
-tests/
-├── contract/
-├── integration/
-└── unit/
-
-# [REMOVE IF UNUSED] Option 2: Web application (when "frontend" + "backend" detected)
-backend/
-├── src/
-│   ├── models/
-│   ├── services/
-│   └── api/
-└── tests/
-
-frontend/
-├── src/
-│   ├── components/
-│   ├── pages/
-│   └── services/
-└── tests/
-
-# [REMOVE IF UNUSED] Option 3: Mobile + API (when "iOS/Android" detected)
-api/
-└── [same as backend above]
-
-ios/ or android/
-└── [platform-specific structure: feature modules, UI flows, platform tests]
+__tests__/
+├── unit/
+│   ├── nominatim.test.ts        # NOUVEAU : cas 'ambiguous'
+│   └── utils.test.ts             # NOUVEAU : parseBulkAddressText
+└── integration/
+    └── AddressForm.test.tsx      # NOUVEAU : isolation champ départ, plafond 20, affichage inline
 ```
 
-**Structure Decision**: [Document the selected structure and reference the real
-directories captured above]
+**Structure Rationale**: Aucune nouvelle route, aucun nouveau composant top-level — la feature est une amélioration ciblée du formulaire de saisie déjà livré avec la spec 001, en respectant les contrats API existants (voir research.md pour la justification de chaque décision).
 
 ## Complexity Tracking
 
-> **Fill ONLY if Constitution Check has violations that must be justified**
-
-| Violation | Why Needed | Simpler Alternative Rejected Because |
-|-----------|------------|-------------------------------------|
-| [e.g., 4th project] | [current need] | [why 3 projects insufficient] |
-| [e.g., Repository pattern] | [specific problem] | [why direct DB access insufficient] |
+*Aucune violation de la Constitution — section non applicable.*

@@ -127,19 +127,46 @@ export async function geocodeAddress(address: string): Promise<{
   }
 }
 
+// Extracts a rough "city/region" key from a Nominatim display_name — skips
+// the street/neighborhood-level prefix (which can legitimately differ for
+// the same city, e.g. two districts of Laval) and the trailing postcode/
+// country, keeping a small window of components (city, county, state) so
+// two results can be compared to detect ambiguity between distinct places.
+function extractLocalityKey(displayName: string): string {
+  const parts = displayName.split(',').map((p) => p.trim())
+  const end = Math.max(1, parts.length - 2)
+  const start = Math.max(1, end - 3)
+  return parts.slice(start, end).join(',').toLowerCase()
+}
+
+function isAmbiguousMatch(
+  top: { displayName: string },
+  alternatives: { displayName: string }[]
+): boolean {
+  if (alternatives.length === 0) return false
+  const topKey = extractLocalityKey(top.displayName)
+  return alternatives.some((alt) => extractLocalityKey(alt.displayName) !== topKey)
+}
+
 export async function geocodeMultiple(addresses: string[]): Promise<GeocodeResponse> {
   const results = await Promise.allSettled(
     addresses.map(async (address) => {
       try {
         const result = await geocodeAddress(address)
         if (result) {
+          const alternatives = result.alternatives || []
+          const ambiguous = isAmbiguousMatch(result, alternatives)
+          const status: 'valid' | 'ambiguous' = ambiguous ? 'ambiguous' : 'valid'
           return {
             address,
-            status: 'valid' as const,
+            status,
             lat: result.lat,
             lon: result.lon,
             displayName: result.displayName,
             alternatives: result.alternatives,
+            error: ambiguous
+              ? `Ambiguous address: "${address}" matched multiple distinct places. Please specify the city.`
+              : undefined,
           }
         } else {
           return {
@@ -169,7 +196,7 @@ export async function geocodeMultiple(addresses: string[]): Promise<GeocodeRespo
 
   return {
     results: processedResults as any,
-    validCount: processedResults.filter((r) => r.status === 'valid').length,
-    invalidCount: processedResults.filter((r) => r.status !== 'valid').length,
+    validCount: processedResults.filter((r) => r.status === 'valid' || r.status === 'ambiguous').length,
+    invalidCount: processedResults.filter((r) => r.status === 'invalid').length,
   }
 }
