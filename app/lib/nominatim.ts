@@ -8,7 +8,13 @@ const CACHE_KEY = 'nominatim_cache'
 const CACHE_TTL = 24 * 60 * 60 * 1000 // 24 hours
 
 interface CacheEntry {
-  result: { lat: number; lon: number; display_name: string; address?: Record<string, string> }[]
+  result: {
+    lat: number
+    lon: number
+    display_name: string
+    address?: Record<string, string>
+    importance?: number
+  }[]
   timestamp: number
 }
 
@@ -96,6 +102,7 @@ interface GeocodeMatch {
   lon: number
   displayName: string
   address?: NominatimAddressDetails
+  importance?: number
 }
 
 // Builds a short, human-readable address (e.g. "501, Rue des Eaux-Fraîches,
@@ -125,6 +132,7 @@ export async function geocodeAddress(address: string): Promise<{
   lon: number
   displayName: string
   address?: NominatimAddressDetails
+  importance?: number
   alternatives?: (GeocodeMatch & { displayName: string })[]
 } | null> {
   // Check cache first
@@ -138,11 +146,13 @@ export async function geocodeAddress(address: string): Promise<{
         lon: parseFloat(cachedTop.lon.toString()),
         displayName: cachedTop.display_name,
         address: cachedTop.address,
+        importance: cachedTop.importance,
         alternatives: cachedResults.slice(1).map((r) => ({
           lat: parseFloat(r.lat.toString()),
           lon: parseFloat(r.lon.toString()),
           displayName: r.display_name,
           address: r.address,
+          importance: r.importance,
         })),
       }
     }
@@ -172,11 +182,13 @@ export async function geocodeAddress(address: string): Promise<{
       lon: parseFloat(topMatch.lon),
       displayName: topMatch.display_name,
       address: topMatch.address,
+      importance: topMatch.importance,
       alternatives: results.slice(1).map((r) => ({
         lat: parseFloat(r.lat),
         lon: parseFloat(r.lon),
         displayName: r.display_name,
         address: r.address,
+        importance: r.importance,
       })),
     }
   } catch (error) {
@@ -197,13 +209,27 @@ function extractLocalityKey(displayName: string): string {
   return parts.slice(start, end).join(',').toLowerCase()
 }
 
+// An alternative only counts as a genuine competing candidate if it's
+// reasonably close in relevance to the top match. Without this, a precise,
+// unique address (e.g. with a postal code) could get flagged ambiguous just
+// because Nominatim's top-3 happened to include a same-named street in an
+// unrelated town with far lower importance — a false positive.
+const MIN_RELATIVE_IMPORTANCE = 0.5
+
 function isAmbiguousMatch(
-  top: { displayName: string },
-  alternatives: { displayName: string }[]
+  top: { displayName: string; importance?: number },
+  alternatives: { displayName: string; importance?: number }[]
 ): boolean {
   if (alternatives.length === 0) return false
   const topKey = extractLocalityKey(top.displayName)
-  return alternatives.some((alt) => extractLocalityKey(alt.displayName) !== topKey)
+
+  return alternatives.some((alt) => {
+    if (extractLocalityKey(alt.displayName) === topKey) return false
+    // If importance is missing on either side, fall back to locality-only
+    // comparison (can't judge relative confidence).
+    if (top.importance === undefined || alt.importance === undefined) return true
+    return alt.importance >= top.importance * MIN_RELATIVE_IMPORTANCE
+  })
 }
 
 export async function geocodeMultiple(addresses: string[]): Promise<GeocodeResponse> {
