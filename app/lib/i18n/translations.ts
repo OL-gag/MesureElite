@@ -39,7 +39,7 @@ export const translations: Record<Locale, Record<string, string>> = {
     // home (app/page.tsx)
     'home.title': 'Trouvez le trajet le plus court',
     'home.subtitle':
-      "Entrez une adresse de départ/retour et 2 à 20 arrêts pour obtenir le trajet optimisé. Parfait pour les livraisons, les road trips ou tout déplacement à plusieurs arrêts.",
+      "Entrez une adresse de départ/retour et 2 à 20 arrêts pour obtenir le trajet optimisé. Parfait pour des mesures d'exceptions!",
     'home.cardTitle': '🗺️ Optimisez votre trajet',
     'home.cardIntro': 'Entrez vos adresses ci-dessous pour calculer le trajet le plus court possible.',
 
