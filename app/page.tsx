@@ -10,8 +10,22 @@ export default function Home() {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
 
-  const handleFormSubmit = async (_addresses: AddressInput[], geocodeResults: GeocodeResponse) => {
+  // Restore the previously submitted addresses (if any) so the "← Edit Addresses"
+  // button on the results page doesn't wipe the user's input (see FR-006 / US3).
+  const [initialAddressTexts] = useState<string[] | null>(() => {
+    if (typeof window === 'undefined') return null
+    try {
+      const raw = sessionStorage.getItem('addressTexts')
+      return raw ? JSON.parse(raw) : null
+    } catch {
+      return null
+    }
+  })
+
+  const handleFormSubmit = async (addresses: AddressInput[], geocodeResults: GeocodeResponse) => {
     setLoading(true)
+
+    sessionStorage.setItem('addressTexts', JSON.stringify(addresses.map((a) => a.text)))
 
     try {
       // Get valid/ambiguous (usable) addresses from geocode results — AddressForm
@@ -99,7 +113,12 @@ export default function Home() {
               </p>
             </div>
 
-            <AddressForm onSubmit={handleFormSubmit} loading={loading} />
+            <AddressForm
+              onSubmit={handleFormSubmit}
+              loading={loading}
+              initialStartAddress={initialAddressTexts?.[0] ?? ''}
+              initialStopAddresses={initialAddressTexts?.slice(1)}
+            />
           </div>
         </section>
       </div>

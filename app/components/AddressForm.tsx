@@ -7,6 +7,8 @@ import { generateId, parseBulkAddressText } from '@/app/lib/utils'
 interface AddressFormProps {
   onSubmit: (addresses: AddressInput[], geocodeResults: GeocodeResponse) => void
   loading?: boolean
+  initialStartAddress?: string
+  initialStopAddresses?: string[]
 }
 
 const MAX_STOPS = 20
@@ -81,12 +83,18 @@ function FieldStatusMessage({ status }: { status: FieldStatus }) {
   return null
 }
 
-export default function AddressForm({ onSubmit, loading = false }: AddressFormProps) {
-  const [startAddress, setStartAddress] = useState('')
+export default function AddressForm({
+  onSubmit,
+  loading = false,
+  initialStartAddress = '',
+  initialStopAddresses,
+}: AddressFormProps) {
+  const [startAddress, setStartAddress] = useState(initialStartAddress)
   const [startStatus, setStartStatus] = useState<FieldStatus>(PENDING_STATUS)
 
-  const [stopAddresses, setStopAddresses] = useState<string[]>(['', ''])
-  const [stopStatuses, setStopStatuses] = useState<FieldStatus[]>([PENDING_STATUS, PENDING_STATUS])
+  const initialStops = initialStopAddresses && initialStopAddresses.length > 0 ? initialStopAddresses : ['', '']
+  const [stopAddresses, setStopAddresses] = useState<string[]>(initialStops)
+  const [stopStatuses, setStopStatuses] = useState<FieldStatus[]>(initialStops.map(() => PENDING_STATUS))
 
   const [geocoding, setGeocoding] = useState(false)
   const [formWarning, setFormWarning] = useState<string>('')

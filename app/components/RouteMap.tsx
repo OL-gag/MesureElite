@@ -78,7 +78,7 @@ export default function RouteMap({ route }: RouteMapProps) {
   const bounds = L.latLngBounds(polylineCoordinates)
 
   return (
-    <div className="w-full h-96 rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700">
+    <div className="w-full h-[28rem] sm:h-[32rem] lg:h-[36rem] rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700">
       <MapContainer
         ref={mapRef}
         bounds={bounds}
