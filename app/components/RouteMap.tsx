@@ -11,13 +11,13 @@ interface RouteMapProps {
   route: Route
 }
 
-// Cycles blue → green → amber across stops/segments so each leg of the route
+// Cycles blue → green → brown across stops/segments so each leg of the route
 // is visually distinguishable on the map, especially where the path crosses
-// itself. Reuses the app's existing info/success/warning colors.
+// itself.
 const SEGMENT_COLORS = [
   { bg: '#3b82f6', border: '#1d4ed8' }, // blue
   { bg: '#10b981', border: '#047857' }, // green
-  { bg: '#f59e0b', border: '#b45309' }, // amber
+  { bg: '#78350f', border: '#451a03' }, // dark brown
 ]
 
 function colorForSequence(sequence: number) {
