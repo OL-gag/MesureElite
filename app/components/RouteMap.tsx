@@ -15,18 +15,20 @@ export default function RouteMap({ route }: RouteMapProps) {
   const { t } = useLanguage()
   const mapRef = useRef<any>(null)
 
-  // Parse GeoJSON geometry to LatLng coordinates
-  const getCoordinates = () => {
-    if (!route || !route.segments || route.segments.length === 0) {
+  // Prefer the actual road-following geometry from OSRM (GeoJSON [lon, lat]
+  // pairs, converted to Leaflet's [lat, lon] order). Falls back to straight
+  // lines between waypoints for routes calculated/cached before this field
+  // existed, or if OSRM returned no geometry.
+  const getCoordinates = (): [number, number][] => {
+    if (route?.geometry && route.geometry.length > 0) {
+      return route.geometry.map(([lon, lat]) => [lat, lon])
+    }
+
+    if (!route || !route.waypoints || route.waypoints.length === 0) {
       return []
     }
 
-    const coords: [number, number][] = []
-    // For now, just connect the waypoints since we have lat/lon
-    route.waypoints.forEach((wp) => {
-      coords.push([wp.lat, wp.lon])
-    })
-    return coords
+    return route.waypoints.map((wp) => [wp.lat, wp.lon])
   }
 
   // Create markers for waypoints

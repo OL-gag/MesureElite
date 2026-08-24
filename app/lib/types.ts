@@ -44,6 +44,11 @@ export interface Route {
   status: 'pending' | 'calculating' | 'success' | 'failed'
   error?: string
   calculatedAt: Date
+  // Road-following route geometry from OSRM, as [lon, lat] pairs (GeoJSON
+  // coordinate order). Used to draw the actual road path on the map instead
+  // of straight lines between waypoints. Optional for backward compatibility
+  // with routes calculated/cached before this field existed.
+  geometry?: [number, number][]
 }
 
 export interface Waypoint {
@@ -66,7 +71,6 @@ export interface Segment {
   sequence: number
   distance: number
   duration: number
-  polyline?: string
 }
 
 // API Request/Response types
@@ -127,5 +131,6 @@ export interface RouteResponse {
     optimizationGain: number
     status: 'success' | 'failed'
     error?: string
+    geometry?: [number, number][]
   }
 }

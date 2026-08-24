@@ -10,7 +10,7 @@ interface OSRMRouteResponse {
   routes: Array<{
     distance: number
     duration: number
-    geometry: any
+    geometry: { type: 'LineString'; coordinates: [number, number][] }
     legs: Array<{
       distance: number
       duration: number
@@ -120,7 +120,6 @@ export async function calculateRoute(
       sequence: index + 1,
       distance: leg.distance,
       duration: leg.duration,
-      polyline: route.geometry, // Simplified; should encode properly
     }))
 
     // Create waypoints array with returned order
@@ -153,6 +152,7 @@ export async function calculateRoute(
       totalDuration,
       optimizationGain,
       status: 'success',
+      geometry: route.geometry?.coordinates ?? [],
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error'
