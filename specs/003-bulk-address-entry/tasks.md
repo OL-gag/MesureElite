@@ -62,7 +62,7 @@ No setup tasks required. This feature extends the existing Next.js project deliv
 - [X] T006 [US1] Enforce the 20-stop cap in `app/components/AddressForm.tsx` (independent from the isolated start field, FR-001a): disable "+ Add Address" and truncate paste overflow at 20, with a clear warning message when the limit is hit (Edge Case: > 20 adresses)
 - [X] T007 [US1] Confirm empty/whitespace-only stop rows are excluded from the payload sent to `/api/geocode` on submit (FR-007) — adjust the existing `filledAddresses` filter in `app/components/AddressForm.tsx` to operate on the new stops-only array
 - [X] T008 [P] [US1] Unit test `parseBulkAddressText` in `__tests__/unit/utils.test.ts` (multiline input, blank lines, trailing/leading whitespace, no-newline input)
-- [ ] T009 [US1] Manual validation per `quickstart.md` Scénarios 2 (saisie de 15 adresses) et 7 (plafond 20+1)
+- [X] T009 [US1] Manual validation per `quickstart.md` Scénarios 2 (saisie de 15 adresses) et 7 (plafond 20+1)
 
 **Checkpoint**: User Story 1 is fully functional and independently testable — bulk paste and 20-stop cap work without any validation/error-display changes from US2.
 
@@ -83,7 +83,7 @@ No setup tasks required. This feature extends the existing Next.js project deliv
 - [X] T014 [US2] Remove the `alert()`-based geocoding error handling in `app/page.tsx` (`handleFormSubmit`), since per-field errors are now shown inline by `AddressForm.tsx` (FR-003, Constitution V — no cryptic/blocking failures)
 - [X] T015 [US2] Enforce the submission guard in `app/components/AddressForm.tsx`: disable "Calculer" unless the start field is valid AND at least 2 stop addresses are valid (FR-005, FR-009, data-model.md § Règles de soumission — minimum 3 addresses total)
 - [X] T016 [P] [US2] Unit test the `'ambiguous'` classification in `__tests__/unit/nominatim.test.ts` (mock Nominatim response with multiple differing-city results)
-- [ ] T017 [US2] Manual validation per `quickstart.md` Scénarios 3 (erreurs inline), 4 (adresse ambiguë), 5 (correction ciblée), 8 (minimum 3 adresses pour activer le calcul) — chronométrer l'affichage du statut après blur pour confirmer SC-004 (< 1s)
+- [X] T017 [US2] Manual validation per `quickstart.md` Scénarios 3 (erreurs inline), 4 (adresse ambiguë), 5 (correction ciblée), 8 (minimum 3 adresses pour activer le calcul) — chronométrer l'affichage du statut après blur pour confirmer SC-004 (< 1s)
 
 **Checkpoint**: User Stories 1 AND 2 both work independently — bulk entry plus clear, non-blocking inline validation.
 
@@ -99,7 +99,7 @@ No setup tasks required. This feature extends the existing Next.js project deliv
 
 - [X] T018 [US3] Verify/adjust the existing add/remove logic for stop rows in `app/components/AddressForm.tsx` (post-T001 refactor) so removing or editing one stop does not reset or re-trigger validation on unrelated rows (FR-006)
 - [X] T019 [US3] Confirm the isolated start field (from T001) supports editing with re-validation on blur but exposes no delete control, and remains always displayed/required (FR-001a, US3 Acceptance Scenario 3)
-- [ ] T020 [US3] Manual validation per `quickstart.md` Scénario 6 (suppression d'un arrêt + modification du champ départ/retour) — confirmer que l'ajout/suppression/édition se reflète en < 100ms sans rechargement de page (SC-006)
+- [X] T020 [US3] Manual validation per `quickstart.md` Scénario 6 (suppression d'un arrêt + modification du champ départ/retour) — confirmer que l'ajout/suppression/édition se reflète en < 100ms sans rechargement de page (SC-006)
 
 **Checkpoint**: All user stories (US1, US2, US3) are independently functional.
 
@@ -110,7 +110,7 @@ No setup tasks required. This feature extends the existing Next.js project deliv
 **Purpose**: Coverage and regression safety across all three stories
 
 - [X] T021 [P] Integration test `__tests__/integration/AddressForm.test.tsx` covering: isolated start field rendering, 20-stop cap, inline valid/invalid/ambiguous display, submission guard
-- [ ] T022 Run the full `quickstart.md` validation (all 8 scenarios) manually against `npm run dev`
+- [X] T022 Run the full `quickstart.md` validation (all 8 scenarios) manually against `npm run dev`
 - [X] T023 [P] Remove the now-unused `console.warn`-based invalid-results handling left over in `app/components/AddressForm.tsx` after T012
 - [X] T024 Regression check: confirm the spec 001 end-to-end flow (address entry → geocode → route → results page) still works unchanged, since `/api/geocode` and `/api/route` contracts are untouched
 
