@@ -2,7 +2,7 @@
 
 import { useCallback, useState } from 'react'
 import { AddressInput, GeocodeResponse } from '@/app/lib/types'
-import { generateId, parseBulkAddressText, findDistanceOutliers } from '@/app/lib/utils'
+import { generateId, parseBulkAddressText, findDistanceOutliers, formatDateToISO } from '@/app/lib/utils'
 import { useLanguage } from '@/app/lib/i18n/LanguageContext'
 import { translateError } from '@/app/lib/i18n/translations'
 
@@ -102,12 +102,18 @@ export default function AddressForm({
   initialStopAddresses,
 }: AddressFormProps) {
   const { t } = useLanguage()
+  const todayISO = formatDateToISO(new Date())
+
   const [startAddress, setStartAddress] = useState(initialStartAddress)
   const [startStatus, setStartStatus] = useState<FieldStatus>(PENDING_STATUS)
+  const [startMeasurementDate, setStartMeasurementDate] = useState<string>(todayISO)
+  const [startDeadlineDate, setStartDeadlineDate] = useState<string>(todayISO)
 
   const initialStops = initialStopAddresses && initialStopAddresses.length > 0 ? initialStopAddresses : ['', '']
   const [stopAddresses, setStopAddresses] = useState<string[]>(initialStops)
   const [stopStatuses, setStopStatuses] = useState<FieldStatus[]>(initialStops.map(() => PENDING_STATUS))
+  const [stopMeasurementDates, setStopMeasurementDates] = useState<string[]>(initialStops.map(() => todayISO))
+  const [stopDeadlineDates, setStopDeadlineDates] = useState<string[]>(initialStops.map(() => todayISO))
 
   const [geocoding, setGeocoding] = useState(false)
   const [formWarning, setFormWarning] = useState<string>('')
@@ -158,11 +164,23 @@ export default function AddressForm({
       return next
     })
     setStopStatuses((prev) => (prev.length >= MAX_STOPS ? prev : [...prev, PENDING_STATUS]))
-  }, [t])
+    setStopMeasurementDates((prev) => (prev.length >= MAX_STOPS ? prev : [...prev, todayISO]))
+    setStopDeadlineDates((prev) => (prev.length >= MAX_STOPS ? prev : [...prev, todayISO]))
+  }, [t, todayISO])
 
   const removeStopAddress = useCallback((index: number) => {
     setStopAddresses((prev) => (prev.length > 2 ? prev.filter((_, i) => i !== index) : prev))
     setStopStatuses((prev) => (prev.length > 2 ? prev.filter((_, i) => i !== index) : prev))
+    setStopMeasurementDates((prev) => (prev.length > 2 ? prev.filter((_, i) => i !== index) : prev))
+    setStopDeadlineDates((prev) => (prev.length > 2 ? prev.filter((_, i) => i !== index) : prev))
+  }, [])
+
+  const updateStopMeasurementDate = useCallback((index: number, dateStr: string) => {
+    setStopMeasurementDates((prev) => prev.map((d, i) => (i === index ? dateStr : d)))
+  }, [])
+
+  const updateStopDeadlineDate = useCallback((index: number, dateStr: string) => {
+    setStopDeadlineDates((prev) => prev.map((d, i) => (i === index ? dateStr : d)))
   }, [])
 
   const handleStopPaste = useCallback(
@@ -193,6 +211,18 @@ export default function AddressForm({
           nextStatuses[index] = { status: 'geocoding' }
           nextStatuses.splice(index + 1, 0, ...linesToInsert.map(() => ({ status: 'geocoding' as const })))
           return nextStatuses
+        })
+
+        setStopMeasurementDates((prevDates) => {
+          const nextDates = [...prevDates]
+          nextDates.splice(index + 1, 0, ...linesToInsert.map(() => todayISO))
+          return nextDates
+        })
+
+        setStopDeadlineDates((prevDates) => {
+          const nextDates = [...prevDates]
+          nextDates.splice(index + 1, 0, ...linesToInsert.map(() => todayISO))
+          return nextDates
         })
 
         // Validate the pasted line and every newly-inserted line right away,
@@ -293,6 +323,10 @@ export default function AddressForm({
             result.lat !== undefined &&
             result.lon !== undefined &&
             result.displayName !== undefined
+          const measurementDateStr = i === 0 ? startMeasurementDate : stopMeasurementDates[i - 1]
+          const deadlineDateStr = i === 0 ? startDeadlineDate : stopDeadlineDates[i - 1]
+          const measurementDate = new Date(measurementDateStr + 'T00:00:00')
+          const deadlineDate = new Date(deadlineDateStr + 'T00:00:00')
           return {
             id: generateId(),
             text,
@@ -307,6 +341,8 @@ export default function AddressForm({
             alternatives: result?.alternatives,
             createdAt: new Date(),
             updatedAt: new Date(),
+            measurementDate: measurementDate,
+            deadlineDate: deadlineDate,
           }
         })
 
@@ -339,6 +375,26 @@ export default function AddressForm({
           disabled={isBusy}
         />
         <FieldStatusMessage status={startStatus} addressText={startAddress} />
+        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1 mt-3">
+          {t('addressForm.measurementDateLabel')}
+        </label>
+        <input
+          type="date"
+          value={startMeasurementDate}
+          onChange={(e) => setStartMeasurementDate(e.target.value)}
+          className="input-field"
+          disabled={isBusy}
+        />
+        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1 mt-3">
+          {t('addressForm.deadlineDateLabel')}
+        </label>
+        <input
+          type="date"
+          value={startDeadlineDate}
+          onChange={(e) => setStartDeadlineDate(e.target.value)}
+          className="input-field"
+          disabled={isBusy}
+        />
       </div>
 
       {/* Stop addresses — FR-001, up to 20, separate from the start/return field */}
@@ -355,31 +411,57 @@ export default function AddressForm({
         </div>
 
         {stopAddresses.map((address, index) => (
-          <div key={index} className="flex gap-2">
-            <div className="flex-1">
+          <div key={index} className="border rounded-md p-3 space-y-3">
+            <div className="flex gap-2">
+              <div className="flex-1">
+                <input
+                  type="text"
+                  value={address}
+                  onChange={(e) => updateStopAddress(index, e.target.value)}
+                  onBlur={() => handleStopBlur(index)}
+                  onPaste={(e) => handleStopPaste(index, e)}
+                  placeholder={t('addressForm.stopPlaceholder', { index: index + 1 })}
+                  className="input-field"
+                  disabled={isBusy}
+                />
+                <FieldStatusMessage status={stopStatuses[index] ?? PENDING_STATUS} addressText={address} />
+              </div>
+              {stopAddresses.length > 2 && (
+                <button
+                  type="button"
+                  onClick={() => removeStopAddress(index)}
+                  className="mt-0 h-fit px-3 py-2 bg-red-100 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-md hover:bg-red-200 dark:hover:bg-red-900/40 disabled:opacity-50"
+                  disabled={isBusy}
+                  title={t('addressForm.removeStopTitle')}
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                {t('addressForm.measurementDateLabel')}
+              </label>
               <input
-                type="text"
-                value={address}
-                onChange={(e) => updateStopAddress(index, e.target.value)}
-                onBlur={() => handleStopBlur(index)}
-                onPaste={(e) => handleStopPaste(index, e)}
-                placeholder={t('addressForm.stopPlaceholder', { index: index + 1 })}
+                type="date"
+                value={stopMeasurementDates[index] ?? todayISO}
+                onChange={(e) => updateStopMeasurementDate(index, e.target.value)}
                 className="input-field"
                 disabled={isBusy}
               />
-              <FieldStatusMessage status={stopStatuses[index] ?? PENDING_STATUS} addressText={address} />
             </div>
-            {stopAddresses.length > 2 && (
-              <button
-                type="button"
-                onClick={() => removeStopAddress(index)}
-                className="mt-0 h-fit px-3 py-2 bg-red-100 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-md hover:bg-red-200 dark:hover:bg-red-900/40 disabled:opacity-50"
+            <div>
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                {t('addressForm.deadlineDateLabel')}
+              </label>
+              <input
+                type="date"
+                value={stopDeadlineDates[index] ?? todayISO}
+                onChange={(e) => updateStopDeadlineDate(index, e.target.value)}
+                className="input-field"
                 disabled={isBusy}
-                title={t('addressForm.removeStopTitle')}
-              >
-                ✕
-              </button>
-            )}
+              />
+            </div>
           </div>
         ))}
       </div>

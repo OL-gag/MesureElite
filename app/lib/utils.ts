@@ -91,3 +91,47 @@ export function findDistanceOutliers<T extends { lat: number; lon: number }>(
     })
     .filter((point) => point.nearestKm > DISTANCE_OUTLIER_THRESHOLD_KM)
 }
+
+// Date formatting utilities (US1 & US2)
+
+export function formatDateToISO(date: Date): string {
+  return date.toISOString().split('T')[0]
+}
+
+export function parseISODateString(dateStr: string): Date {
+  return new Date(dateStr + 'T00:00:00')
+}
+
+export function isValidDate(date: Date): boolean {
+  return date instanceof Date && !isNaN(date.getTime())
+}
+
+export function daysUntilDate(targetDate: Date, fromDate: Date = new Date()): number {
+  const target = new Date(targetDate)
+  target.setHours(0, 0, 0, 0)
+  const from = new Date(fromDate)
+  from.setHours(0, 0, 0, 0)
+  const diffTime = target.getTime() - from.getTime()
+  return Math.floor(diffTime / (1000 * 60 * 60 * 24))
+}
+
+export function isOverdue(deadlineDate: Date, asOfDate: Date = new Date()): boolean {
+  return daysUntilDate(deadlineDate, asOfDate) < 0
+}
+
+export function getPriority(deadlineDate: Date): 'urgent' | 'normal' | 'flexible' {
+  const daysUntilDeadline = daysUntilDate(deadlineDate)
+  if (isOverdue(deadlineDate)) return 'urgent'
+  if (daysUntilDeadline <= 1) return 'urgent'
+  if (daysUntilDeadline <= 7) return 'normal'
+  return 'flexible'
+}
+
+export function validateDateRange(fromDate: Date, toDate: Date, maxDaysInPast: number = 30): boolean {
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const minDate = new Date(today)
+  minDate.setDate(minDate.getDate() - maxDaysInPast)
+
+  return fromDate >= minDate && toDate >= minDate
+}

@@ -75,6 +75,13 @@ export const translations: Record<Locale, Record<string, string>> = {
     'addressForm.errorValidationFailed': 'Échec de la validation',
     'addressForm.errorSubmitFailed': "Échec du géocodage des adresses",
 
+    // measurement dates (US1 & US2)
+    'addressForm.measurementDateLabel': 'Date de mesure',
+    'addressForm.measurementDatePlaceholder': 'Sélectionner la date préférée pour la mesure',
+    'addressForm.deadlineDateLabel': 'Date limite',
+    'addressForm.deadlineDatePlaceholder': 'Sélectionner la date limite (au plus tard)',
+    'addressForm.dateFormatError': 'Date invalide',
+
     // results (app/results/page.tsx)
     'results.loading': 'Chargement...',
     'results.heading': '✅ Itinéraire optimisé',
@@ -169,6 +176,13 @@ export const translations: Record<Locale, Record<string, string>> = {
     'addressForm.errorGeocodingFailedGeneric': 'Geocoding failed',
     'addressForm.errorValidationFailed': 'Validation failed',
     'addressForm.errorSubmitFailed': 'Failed to geocode addresses',
+
+    // measurement dates (US1 & US2)
+    'addressForm.measurementDateLabel': 'Measurement Date',
+    'addressForm.measurementDatePlaceholder': 'Select preferred measurement date',
+    'addressForm.deadlineDateLabel': 'Deadline Date',
+    'addressForm.deadlineDatePlaceholder': 'Select deadline date (must complete by)',
+    'addressForm.dateFormatError': 'Invalid date',
 
     // results (app/results/page.tsx)
     'results.loading': 'Loading...',

@@ -4,8 +4,8 @@ import dynamic from 'next/dynamic'
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import ErrorBoundary from '../components/ErrorBoundary'
-import { Route, GeocodeResponse } from '../lib/types'
-import { formatDistance, formatDuration, formatPercentage } from '../lib/utils'
+import { Route, GeocodeResponse, AddressInput } from '../lib/types'
+import { formatDistance, formatDuration, formatPercentage, formatDateToISO } from '../lib/utils'
 import { useLanguage } from '../lib/i18n/LanguageContext'
 import { translateError } from '../lib/i18n/translations'
 
@@ -16,11 +16,13 @@ export default function Results() {
   const { t } = useLanguage()
   const [route, setRoute] = useState<Route | null>(null)
   const [geocodeResults, setGeocodeResults] = useState<GeocodeResponse | null>(null)
+  const [addresses, setAddresses] = useState<AddressInput[] | null>(null)
 
   useEffect(() => {
     // Load from sessionStorage
     const storedRoute = sessionStorage.getItem('route')
     const storedResults = sessionStorage.getItem('geocodeResults')
+    const storedAddresses = sessionStorage.getItem('addresses')
 
     if (!storedRoute || !storedResults) {
       router.push('/')
@@ -29,6 +31,14 @@ export default function Results() {
 
     setRoute(JSON.parse(storedRoute))
     setGeocodeResults(JSON.parse(storedResults))
+    if (storedAddresses) {
+      const parsed = JSON.parse(storedAddresses)
+      setAddresses(parsed.map((a: any) => ({
+        ...a,
+        measurementDate: a.measurementDate ? new Date(a.measurementDate) : undefined,
+        deadlineDate: a.deadlineDate ? new Date(a.deadlineDate) : undefined,
+      })))
+    }
   }, [router])
 
   if (!route || !geocodeResults) {
@@ -89,6 +99,7 @@ export default function Results() {
           <div className="space-y-3">
             {route.waypoints.map((waypoint) => {
               const segment = route.segments.find((s) => s.sequence === waypoint.sequence)
+              const addressData = addresses?.[waypoint.sequence - 1]
               return (
                 <div
                   key={waypoint.id}
@@ -104,6 +115,16 @@ export default function Results() {
                       </p>
                       {waypoint.isStartPoint && (
                         <span className="badge-success text-xs">{t('results.startEndBadge')}</span>
+                      )}
+                      {addressData?.measurementDate && (
+                        <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
+                          📅 {t('addressForm.measurementDateLabel')}: {formatDateToISO(addressData.measurementDate)}
+                        </p>
+                      )}
+                      {addressData?.deadlineDate && (
+                        <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
+                          ⏰ {t('addressForm.deadlineDateLabel')}: {formatDateToISO(addressData.deadlineDate)}
+                        </p>
                       )}
                       {segment && !waypoint.isEndPoint && (
                         <p className="text-sm text-slate-600 dark:text-slate-400 mt-2">

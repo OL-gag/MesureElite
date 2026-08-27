@@ -29,6 +29,13 @@ export default function Home() {
     setLoading(true)
 
     sessionStorage.setItem('addressTexts', JSON.stringify(addresses.map((a) => a.text)))
+    sessionStorage.setItem('addresses', JSON.stringify(addresses.map((a) => ({
+      id: a.id,
+      text: a.text,
+      measurementDate: a.measurementDate?.toISOString(),
+      deadlineDate: a.deadlineDate?.toISOString(),
+      order: a.order,
+    }))))
 
     try {
       // Get valid/ambiguous (usable) addresses from geocode results — AddressForm
