@@ -81,6 +81,7 @@ export const translations: Record<Locale, Record<string, string>> = {
     'addressForm.deadlineDateLabel': 'Date limite',
     'addressForm.deadlineDatePlaceholder': 'Sélectionner la date limite (au plus tard)',
     'addressForm.dateFormatError': 'Date invalide',
+    'addressForm.errorDeadlineBeforeMeasurement': 'La date limite doit être après la date de mesure',
 
     // results (app/results/page.tsx)
     'results.loading': 'Chargement...',
@@ -183,6 +184,7 @@ export const translations: Record<Locale, Record<string, string>> = {
     'addressForm.deadlineDateLabel': 'Deadline Date',
     'addressForm.deadlineDatePlaceholder': 'Select deadline date (must complete by)',
     'addressForm.dateFormatError': 'Invalid date',
+    'addressForm.errorDeadlineBeforeMeasurement': 'Deadline date must be after measurement date',
 
     // results (app/results/page.tsx)
     'results.loading': 'Loading...',

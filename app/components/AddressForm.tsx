@@ -265,6 +265,16 @@ export default function AddressForm({
         return
       }
 
+      // Validate that deadline >= measurement date for all stops
+      for (let i = 0; i < filledStops.length; i++) {
+        const measurementDate = new Date(stopMeasurementDates[i] + 'T00:00:00')
+        const deadlineDate = new Date(stopDeadlineDates[i] + 'T00:00:00')
+        if (deadlineDate < measurementDate) {
+          setFormError(t('addressForm.errorDeadlineBeforeMeasurement'))
+          return
+        }
+      }
+
       setGeocoding(true)
 
       try {
@@ -437,9 +447,13 @@ export default function AddressForm({
                 type="date"
                 value={stopDeadlineDates[index] ?? todayISO}
                 onChange={(e) => updateStopDeadlineDate(index, e.target.value)}
+                min={stopMeasurementDates[index] ?? todayISO}
                 className="input-field"
                 disabled={isBusy}
               />
+              {stopDeadlineDates[index] && stopMeasurementDates[index] && new Date(stopDeadlineDates[index]) < new Date(stopMeasurementDates[index]) && (
+                <p className="error-message text-xs mt-1">⚠ {t('addressForm.errorDeadlineBeforeMeasurement')}</p>
+              )}
             </div>
           </div>
         ))}
