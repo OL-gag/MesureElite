@@ -90,9 +90,32 @@ export default function Home() {
 
       const routeData = await routeResponse.json()
 
-      // Store in sessionStorage and navigate
+      // Store in sessionStorage
       sessionStorage.setItem('route', JSON.stringify(routeData.route))
       sessionStorage.setItem('geocodeResults', JSON.stringify(geocodeResults))
+
+      // Try to generate measurement schedule (US3)
+      try {
+        const scheduleResponse = await fetch('/api/schedule', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ addresses }),
+        })
+
+        if (scheduleResponse.ok) {
+          const schedule = await scheduleResponse.json()
+          sessionStorage.setItem('schedule', JSON.stringify(schedule))
+          // Navigate to schedule instead of results
+          router.push('/schedule')
+          return
+        } else {
+          console.warn('Schedule generation failed, falling back to results page')
+        }
+      } catch (err) {
+        console.warn('Schedule generation error:', err)
+      }
+
+      // Fallback: navigate to results page
       router.push('/results')
     } catch (err) {
       alert(err instanceof Error ? err.message : t('addressForm.errorSubmitFailed'))
