@@ -42,10 +42,10 @@ async function fetchWithRetry(url: string, maxRetries = 3): Promise<Response> {
         }
       }
 
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`)
-      }
-
+      // Return even non-ok responses (e.g. OSRM answers 400 with a structured
+      // { code: 'NoRoute', ... } body for unreachable waypoints) so the
+      // caller can inspect the JSON payload instead of only a generic HTTP
+      // status — retrying wouldn't help for a deterministic routing error.
       return response
     } catch (error) {
       lastError = error instanceof Error ? error : new Error(String(error))
@@ -84,21 +84,35 @@ export async function calculateRoute(
     const url = `${OSRM_BASE_URL}/route/v1/car/${coordinates}?overview=full&geometries=geojson&steps=true`
 
     const response = await fetchWithRetry(url)
+    // OSRM answers routing errors (e.g. NoRoute) with a structured JSON body
+    // even on a non-2xx status, so parse it before deciding how to fail —
+    // relying on response.ok alone would discard that detail.
+    const osrmData = (await response.json().catch(() => null)) as OSRMRouteResponse | null
 
-    if (!response.ok) {
-      const text = await response.text()
-      throw new Error(`OSRM HTTP ${response.status}: Bad coordinates or unreachable waypoints. Response: ${text.substring(0, 200)}`)
+    if (osrmData?.code === 'NoRoute') {
+      // Usually means a waypoint was geocoded to a location OSRM's road
+      // network can't reach by car from the others (e.g. a wrong, far-away
+      // match from an under-specified address) — a distinct, actionable
+      // error rather than a generic routing failure.
+      return {
+        id: '',
+        waypoints: [],
+        segments: [],
+        totalDistance: 0,
+        totalDuration: 0,
+        optimizationGain: 0,
+        status: 'failed',
+        error: 'One or more waypoints are not reachable by car. Please check the addresses.',
+        errorCode: 'WAYPOINTS_UNREACHABLE',
+      }
     }
 
-    const osrmData = (await response.json()) as OSRMRouteResponse
+    if (!response.ok) {
+      throw new Error(`OSRM HTTP ${response.status}: Bad coordinates or unreachable waypoints.`)
+    }
 
-    if (osrmData.code !== 'Ok') {
-      if (osrmData.code === 'NoRoute') {
-        throw new Error(
-          'One or more waypoints are not reachable by car. Please check the addresses.'
-        )
-      }
-      throw new Error(`OSRM error: ${osrmData.code}`)
+    if (!osrmData || osrmData.code !== 'Ok') {
+      throw new Error(`OSRM error: ${osrmData?.code ?? 'unknown'}`)
     }
 
     if (!osrmData.routes || osrmData.routes.length === 0) {
@@ -173,6 +187,7 @@ export async function calculateRoute(
       optimizationGain: 0,
       status: 'failed',
       error: `OSRM routing failed: ${message}`,
+      errorCode: 'ROUTING_FAILED',
     }
   }
 }

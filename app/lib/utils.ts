@@ -55,3 +55,39 @@ export function parseBulkAddressText(text: string): string[] {
     .map((line) => line.trim())
     .filter((line) => line.length > 0)
 }
+
+// Great-circle distance between two coordinates, in kilometers.
+export function haversineDistanceKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 6371 // Earth radius in km
+  const toRad = (deg: number) => (deg * Math.PI) / 180
+  const dLat = toRad(lat2 - lat1)
+  const dLon = toRad(lon2 - lon1)
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) * Math.sin(dLon / 2)
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+  return R * c
+}
+
+const DISTANCE_OUTLIER_THRESHOLD_KM = 300
+
+// Flags points whose nearest neighbor in the list is farther than the
+// threshold — a strong signal that an address was geocoded to the wrong
+// place entirely (e.g. a same-named street matched in another country),
+// rather than the trip genuinely spanning that distance.
+export function findDistanceOutliers<T extends { lat: number; lon: number }>(
+  points: T[]
+): (T & { nearestKm: number })[] {
+  if (points.length < 2) return []
+
+  return points
+    .map((point, index) => {
+      const nearestKm = Math.min(
+        ...points
+          .filter((_, otherIndex) => otherIndex !== index)
+          .map((other) => haversineDistanceKm(point.lat, point.lon, other.lat, other.lon))
+      )
+      return { ...point, nearestKm }
+    })
+    .filter((point) => point.nearestKm > DISTANCE_OUTLIER_THRESHOLD_KM)
+}

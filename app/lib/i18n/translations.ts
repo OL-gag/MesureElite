@@ -57,6 +57,8 @@ export const translations: Record<Locale, Record<string, string>> = {
     'addressForm.maxStopsWarning': 'Maximum {max} adresses d\'arrêt atteint.',
     'addressForm.pasteOverflowWarning':
       'Seules les {max} premières adresses d\'arrêt ont été conservées (la liste collée était plus longue).',
+    'addressForm.outlierWarning':
+      "⚠ Adresse(s) très éloignée(s) des autres — vérifiez qu'elles sont correctes : {addresses}",
     'addressForm.statusChecking': "🔄 Vérification de l'adresse...",
     'addressForm.statusValid': '✓ Valide',
     'addressForm.statusAmbiguousDefault':
@@ -118,6 +120,8 @@ export const translations: Record<Locale, Record<string, string>> = {
     'errors.INVALID_WAYPOINT': 'Chaque point de passage doit avoir un identifiant, une latitude et une longitude',
     'errors.INVALID_COORDINATES': 'Coordonnées invalides pour le point de passage : {id}',
     'errors.ROUTING_FAILED': "Le calcul de l'itinéraire a échoué",
+    'errors.WAYPOINTS_UNREACHABLE':
+      "Une ou plusieurs adresses semblent injoignables en voiture. Vérifiez qu'elles sont bien situées au bon endroit (précisez la ville).",
     'errors.TIMEOUT': "Le calcul de l'itinéraire a expiré. Veuillez réessayer.",
   },
   en: {
@@ -149,6 +153,7 @@ export const translations: Record<Locale, Record<string, string>> = {
     'addressForm.removeStopTitle': 'Remove stop',
     'addressForm.maxStopsWarning': 'Maximum {max} stop addresses reached.',
     'addressForm.pasteOverflowWarning': 'Only the first {max} stop addresses were kept (pasted list was longer).',
+    'addressForm.outlierWarning': '⚠ Address(es) far from the others — please double-check: {addresses}',
     'addressForm.statusChecking': '🔄 Checking address...',
     'addressForm.statusValid': '✓ Valid',
     'addressForm.statusAmbiguousDefault':
@@ -209,6 +214,8 @@ export const translations: Record<Locale, Record<string, string>> = {
     'errors.INVALID_WAYPOINT': 'Each waypoint must have id, lat, and lon',
     'errors.INVALID_COORDINATES': 'Invalid coordinates for waypoint: {id}',
     'errors.ROUTING_FAILED': 'Routing calculation failed',
+    'errors.WAYPOINTS_UNREACHABLE':
+      'One or more addresses seem unreachable by car. Please check they are in the right place (add the city).',
     'errors.TIMEOUT': 'Routing calculation timed out. Please try again.',
   },
 }

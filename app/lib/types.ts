@@ -131,5 +131,6 @@ export interface RouteResponse {
     optimizationGain: number
     status: 'success' | 'failed'
     error?: string
+    errorCode?: string
   }
 }

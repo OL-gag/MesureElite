@@ -2,7 +2,7 @@
 
 import { useCallback, useState } from 'react'
 import { AddressInput, GeocodeResponse } from '@/app/lib/types'
-import { generateId, parseBulkAddressText } from '@/app/lib/utils'
+import { generateId, parseBulkAddressText, findDistanceOutliers } from '@/app/lib/utils'
 import { useLanguage } from '@/app/lib/i18n/LanguageContext'
 import { translateError } from '@/app/lib/i18n/translations'
 
@@ -265,6 +265,26 @@ export default function AddressForm({
         }
 
         const geocodeResults: GeocodeResponse = await response.json()
+
+        // Non-blocking sanity check: an address geocoded to a wildly distant
+        // place (e.g. a same-named street matched in another country because
+        // no city was specified) still passes per-field validation, but
+        // would otherwise only surface as a confusing route-calculation
+        // failure. Warn without preventing submission, since a genuinely
+        // long trip is still a valid use case.
+        const geocodedPoints = geocodeResults.results
+          .map((r, i) =>
+            r.lat !== undefined && r.lon !== undefined ? { lat: r.lat, lon: r.lon, label: combinedTexts[i] } : null
+          )
+          .filter((p): p is { lat: number; lon: number; label: string } => p !== null)
+        const outliers = findDistanceOutliers(geocodedPoints)
+        setFormWarning(
+          outliers.length > 0
+            ? t('addressForm.outlierWarning', {
+                addresses: outliers.map((o) => `${o.label} (${Math.round(o.nearestKm)} km)`).join(' · '),
+              })
+            : ''
+        )
 
         const addressInputs: AddressInput[] = combinedTexts.map((text, i) => {
           const result = geocodeResults.results[i]
