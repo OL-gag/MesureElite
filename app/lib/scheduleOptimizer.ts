@@ -115,8 +115,10 @@ function findBestWorkingDay(
   constraints: ScheduleConstraints,
   today: Date
 ): Date {
-  // Start from preferred day (or today if preferred is in past)
-  let candidate = preferredDay < today ? new Date(today) : new Date(preferredDay)
+  // IMPORTANT: preferredDay is the measurement date — must not be scheduled BEFORE it
+  // Start from preferred day (or today if preferred is in past, since we can't measure in past)
+  let candidate = new Date(Math.max(preferredDay.getTime(), today.getTime()))
+  candidate.setHours(0, 0, 0, 0)
   const maxDays = 365
 
   for (let i = 0; i < maxDays; i++) {
