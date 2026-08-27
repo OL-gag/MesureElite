@@ -16,9 +16,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(error, { status: 400 })
     }
 
-    // Filter addresses with valid dates and coordinates
+    // Filter out start point and keep only stops with valid dates and coordinates
     const validAddresses = addresses.filter(
       (a: any) =>
+        !a.isStartPoint &&
         a.measurementDate &&
         a.deadlineDate &&
         a.geocodedCoords &&
@@ -28,7 +29,7 @@ export async function POST(request: NextRequest) {
 
     if (validAddresses.length === 0) {
       const error: ApiErrorBody = {
-        error: 'No addresses with valid dates and coordinates',
+        error: 'No measurement stops with valid dates and coordinates',
         errorCode: 'MISSING_DATES',
       }
       return NextResponse.json(error, { status: 400 })

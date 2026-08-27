@@ -106,8 +106,6 @@ export default function AddressForm({
 
   const [startAddress, setStartAddress] = useState(initialStartAddress)
   const [startStatus, setStartStatus] = useState<FieldStatus>(PENDING_STATUS)
-  const [startMeasurementDate, setStartMeasurementDate] = useState<string>(todayISO)
-  const [startDeadlineDate, setStartDeadlineDate] = useState<string>(todayISO)
 
   const initialStops = initialStopAddresses && initialStopAddresses.length > 0 ? initialStopAddresses : ['', '']
   const [stopAddresses, setStopAddresses] = useState<string[]>(initialStops)
@@ -323,15 +321,16 @@ export default function AddressForm({
             result.lat !== undefined &&
             result.lon !== undefined &&
             result.displayName !== undefined
-          const measurementDateStr = i === 0 ? startMeasurementDate : stopMeasurementDates[i - 1]
-          const deadlineDateStr = i === 0 ? startDeadlineDate : stopDeadlineDates[i - 1]
-          const measurementDate = new Date(measurementDateStr + 'T00:00:00')
-          const deadlineDate = new Date(deadlineDateStr + 'T00:00:00')
+          const isStartPoint = i === 0
+          const measurementDateStr = isStartPoint ? undefined : stopMeasurementDates[i - 1]
+          const deadlineDateStr = isStartPoint ? undefined : stopDeadlineDates[i - 1]
+          const measurementDate = measurementDateStr ? new Date(measurementDateStr + 'T00:00:00') : undefined
+          const deadlineDate = deadlineDateStr ? new Date(deadlineDateStr + 'T00:00:00') : undefined
           return {
             id: generateId(),
             text,
             order: i + 1,
-            isStartPoint: i === 0,
+            isStartPoint,
             status: result?.status ?? 'invalid',
             geocodedCoords: hasCoords
               ? { lat: result!.lat!, lon: result!.lon!, displayName: result!.displayName! }
@@ -341,8 +340,8 @@ export default function AddressForm({
             alternatives: result?.alternatives,
             createdAt: new Date(),
             updatedAt: new Date(),
-            measurementDate: measurementDate,
-            deadlineDate: deadlineDate,
+            measurementDate,
+            deadlineDate,
           }
         })
 
@@ -353,7 +352,7 @@ export default function AddressForm({
         setGeocoding(false)
       }
     },
-    [startAddress, stopAddresses, onSubmit, t]
+    [startAddress, stopAddresses, stopMeasurementDates, stopDeadlineDates, onSubmit, t]
   )
 
   const isBusy = geocoding || loading
@@ -375,26 +374,6 @@ export default function AddressForm({
           disabled={isBusy}
         />
         <FieldStatusMessage status={startStatus} addressText={startAddress} />
-        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1 mt-3">
-          {t('addressForm.measurementDateLabel')}
-        </label>
-        <input
-          type="date"
-          value={startMeasurementDate}
-          onChange={(e) => setStartMeasurementDate(e.target.value)}
-          className="input-field"
-          disabled={isBusy}
-        />
-        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1 mt-3">
-          {t('addressForm.deadlineDateLabel')}
-        </label>
-        <input
-          type="date"
-          value={startDeadlineDate}
-          onChange={(e) => setStartDeadlineDate(e.target.value)}
-          className="input-field"
-          disabled={isBusy}
-        />
       </div>
 
       {/* Stop addresses — FR-001, up to 20, separate from the start/return field */}
