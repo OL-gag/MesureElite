@@ -164,7 +164,7 @@ export default function Schedule() {
             <div className="lg:col-span-2 card">
               {(() => {
                 const plan = schedule.dailyPlans[selectedDateIndex]
-                if (!startPoint) return <div className="text-center py-8">Loading map...</div>
+                if (!startPoint) return null
 
                 // Create complete round-trip route: start → stops → start
                 const allWaypoints = [
