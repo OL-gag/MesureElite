@@ -172,12 +172,11 @@ export default function Schedule() {
                   )
                 }
 
-                if (!startPoint) {
-                  return (
-                    <div className="text-center text-slate-500 dark:text-slate-400">
-                      📍 Loading map data...
-                    </div>
-                  )
+                // Fallback if startPoint not loaded (use first stop as reference)
+                const mapStart = startPoint || {
+                  lat: plan.stops[0]?.address.lat || 45.5,
+                  lon: plan.stops[0]?.address.lon || -73.5,
+                  displayName: 'Start Point',
                 }
 
                 // OSRM already returns round-trip route (start → stops → start)
@@ -192,9 +191,9 @@ export default function Schedule() {
                       routeId: plan.id,
                       originalAddressId: 'start',
                       sequence: 0,
-                      lat: startPoint.lat,
-                      lon: startPoint.lon,
-                      displayName: startPoint.displayName,
+                      lat: mapStart.lat,
+                      lon: mapStart.lon,
+                      displayName: mapStart.displayName,
                       isStartPoint: true,
                       isEndPoint: false,
                     },
@@ -214,9 +213,9 @@ export default function Schedule() {
                       routeId: plan.id,
                       originalAddressId: 'end',
                       sequence: plan.stops.length + 1,
-                      lat: startPoint.lat,
-                      lon: startPoint.lon,
-                      displayName: startPoint.displayName,
+                      lat: mapStart.lat,
+                      lon: mapStart.lon,
+                      displayName: mapStart.displayName,
                       isStartPoint: false,
                       isEndPoint: true,
                     },
