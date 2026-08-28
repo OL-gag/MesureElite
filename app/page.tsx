@@ -25,6 +25,44 @@ export default function Home() {
     }
   })
 
+  const [initialMeasurementDates] = useState<string[] | null>(() => {
+    if (typeof window === 'undefined') return null
+    try {
+      const raw = sessionStorage.getItem('addresses')
+      if (!raw) return null
+      const addresses = JSON.parse(raw)
+      return addresses.map((a: any) => {
+        if (!a.measurementDate) return undefined
+        const date = new Date(a.measurementDate)
+        const year = date.getFullYear()
+        const month = String(date.getMonth() + 1).padStart(2, '0')
+        const day = String(date.getDate()).padStart(2, '0')
+        return `${year}-${month}-${day}`
+      })
+    } catch {
+      return null
+    }
+  })
+
+  const [initialDeadlineDates] = useState<string[] | null>(() => {
+    if (typeof window === 'undefined') return null
+    try {
+      const raw = sessionStorage.getItem('addresses')
+      if (!raw) return null
+      const addresses = JSON.parse(raw)
+      return addresses.map((a: any) => {
+        if (!a.deadlineDate) return undefined
+        const date = new Date(a.deadlineDate)
+        const year = date.getFullYear()
+        const month = String(date.getMonth() + 1).padStart(2, '0')
+        const day = String(date.getDate()).padStart(2, '0')
+        return `${year}-${month}-${day}`
+      })
+    } catch {
+      return null
+    }
+  })
+
   const handleFormSubmit = async (addresses: AddressInput[], geocodeResults: GeocodeResponse) => {
     setLoading(true)
 
@@ -151,6 +189,8 @@ export default function Home() {
               loading={loading}
               initialStartAddress={initialAddressTexts?.[0] ?? ''}
               initialStopAddresses={initialAddressTexts?.slice(1)}
+              initialMeasurementDates={initialMeasurementDates?.slice(1)}
+              initialDeadlineDates={initialDeadlineDates?.slice(1)}
             />
           </div>
         </section>

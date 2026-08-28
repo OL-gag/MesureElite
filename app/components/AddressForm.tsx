@@ -11,6 +11,8 @@ interface AddressFormProps {
   loading?: boolean
   initialStartAddress?: string
   initialStopAddresses?: string[]
+  initialMeasurementDates?: (string | undefined)[]
+  initialDeadlineDates?: (string | undefined)[]
 }
 
 const MAX_STOPS = 20
@@ -100,6 +102,8 @@ export default function AddressForm({
   loading = false,
   initialStartAddress = '',
   initialStopAddresses,
+  initialMeasurementDates,
+  initialDeadlineDates,
 }: AddressFormProps) {
   const { t } = useLanguage()
   const todayISO = formatDateToISO(new Date())
@@ -110,8 +114,12 @@ export default function AddressForm({
   const initialStops = initialStopAddresses && initialStopAddresses.length > 0 ? initialStopAddresses : ['', '']
   const [stopAddresses, setStopAddresses] = useState<string[]>(initialStops)
   const [stopStatuses, setStopStatuses] = useState<FieldStatus[]>(initialStops.map(() => PENDING_STATUS))
-  const [stopMeasurementDates, setStopMeasurementDates] = useState<string[]>(initialStops.map(() => todayISO))
-  const [stopDeadlineDates, setStopDeadlineDates] = useState<string[]>(initialStops.map(() => todayISO))
+  const [stopMeasurementDates, setStopMeasurementDates] = useState<string[]>(
+    initialStops.map((_, i) => initialMeasurementDates?.[i] || todayISO)
+  )
+  const [stopDeadlineDates, setStopDeadlineDates] = useState<string[]>(
+    initialStops.map((_, i) => initialDeadlineDates?.[i] || todayISO)
+  )
 
   const [geocoding, setGeocoding] = useState(false)
   const [formWarning, setFormWarning] = useState<string>('')
