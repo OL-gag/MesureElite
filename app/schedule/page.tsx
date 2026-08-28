@@ -161,10 +161,9 @@ export default function Schedule() {
           {/* Map and Plan */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
             {/* Map */}
-            <div className="lg:col-span-2 card">
-              {(() => {
+            <div className="lg:col-span-2 card bg-slate-100 dark:bg-slate-800 flex items-center justify-center min-h-[400px]">
+              {startPoint ? (() => {
                 const plan = schedule.dailyPlans[selectedDateIndex]
-                if (!startPoint) return null
 
                 // Create complete round-trip route: start → stops → start
                 const allWaypoints = [
@@ -229,7 +228,11 @@ export default function Schedule() {
                   status: 'success' as const,
                 }
                 return <RouteMap route={route} />
-              })()}
+              })() : (
+                <div className="text-center text-slate-500 dark:text-slate-400">
+                  📍 Loading map...
+                </div>
+              )}
             </div>
 
             {/* Daily Plan Card */}
