@@ -83,10 +83,10 @@ export default function Schedule() {
         <section className="flex justify-between items-center">
           <div>
             <h1 className="text-3xl font-bold text-slate-900 dark:text-white">
-              📅 Optimized Measurement Schedule
+              {t('schedule.title')}
             </h1>
             <p className="text-slate-600 dark:text-slate-400 mt-2">
-              Generated at {new Date(schedule.generatedAt).toLocaleString()}
+              {t('schedule.generatedAt')} {new Date(schedule.generatedAt).toLocaleString()}
             </p>
           </div>
           <button onClick={() => router.push('/')} className="button-secondary">
@@ -97,25 +97,25 @@ export default function Schedule() {
         {/* Summary Metrics */}
         <section className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div className="card">
-            <p className="text-sm text-slate-600 dark:text-slate-400 mb-1">Total Addresses</p>
+            <p className="text-sm text-slate-600 dark:text-slate-400 mb-1">{t('schedule.totalAddresses')}</p>
             <p className="text-3xl font-bold text-blue-600 dark:text-blue-400">
               {schedule.metadata.totalAddresses}
             </p>
           </div>
           <div className="card">
-            <p className="text-sm text-slate-600 dark:text-slate-400 mb-1">Total Distance</p>
+            <p className="text-sm text-slate-600 dark:text-slate-400 mb-1">{t('schedule.totalDistance')}</p>
             <p className="text-3xl font-bold text-green-600 dark:text-green-400">
               {(schedule.metadata.totalDistance / 1000).toFixed(1)} km
             </p>
           </div>
           <div className="card">
-            <p className="text-sm text-slate-600 dark:text-slate-400 mb-1">Total Time</p>
+            <p className="text-sm text-slate-600 dark:text-slate-400 mb-1">{t('schedule.totalDuration')}</p>
             <p className="text-3xl font-bold text-amber-600 dark:text-amber-400">
               {Math.round(schedule.metadata.totalDuration / 3600)}h {Math.round((schedule.metadata.totalDuration % 3600) / 60)}m
             </p>
           </div>
           <div className="card">
-            <p className="text-sm text-slate-600 dark:text-slate-400 mb-1">Days Scheduled</p>
+            <p className="text-sm text-slate-600 dark:text-slate-400 mb-1">{t('schedule.daysScheduled')}</p>
             <p className="text-3xl font-bold text-purple-600 dark:text-purple-400">
               {schedule.dailyPlans.length}
             </p>
@@ -182,13 +182,13 @@ export default function Schedule() {
         {/* Constraints Info */}
         <section className="p-4 bg-slate-50 dark:bg-slate-700/50 rounded-lg border border-slate-200 dark:border-slate-600">
           <h3 className="font-semibold text-slate-900 dark:text-white mb-2">
-            📋 Schedule Constraints
+            {t('schedule.constraints')}
           </h3>
           <ul className="text-sm text-slate-600 dark:text-slate-400 space-y-1">
-            <li>• Max stops per day: {schedule.constraints.maxStopsPerDay}</li>
-            <li>• Working days: Monday - Friday</li>
-            <li>• Priority: Deadline-first grouping</li>
-            <li>• Route optimization: Via OSRM</li>
+            <li>• {t('schedule.maxStopsPerDay')}: {schedule.constraints.maxStopsPerDay}</li>
+            <li>• {t('schedule.workingDays')}: Monday - Friday</li>
+            <li>• {t('schedule.priority')}: {t('schedule.deadlineFirstGrouping')}</li>
+            <li>• {t('schedule.routeOptimization')}: {t('schedule.viaOSRM')}</li>
           </ul>
         </section>
 

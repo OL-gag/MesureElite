@@ -102,6 +102,21 @@ export const translations: Record<Locale, Record<string, string>> = {
     'results.footerInfo':
       "Itinéraire optimisé avec OSRM (Open Source Routing Machine) • Distances calculées par trajet routier",
 
+    // schedule (app/schedule/page.tsx)
+    'schedule.title': '📅 Plan de mesure optimisé',
+    'schedule.generatedAt': 'Généré à',
+    'schedule.totalAddresses': 'Total adresses',
+    'schedule.totalDistance': 'Distance totale',
+    'schedule.totalDuration': 'Durée totale',
+    'schedule.daysScheduled': 'Jours planifiés',
+    'schedule.constraints': '📋 Contraintes du plan',
+    'schedule.maxStopsPerDay': 'Arrêts max par jour',
+    'schedule.workingDays': 'Jours de travail',
+    'schedule.priority': 'Priorité',
+    'schedule.routeOptimization': 'Optimisation d\'itinéraire',
+    'schedule.deadlineFirstGrouping': 'Groupage par date limite',
+    'schedule.viaOSRM': 'Via OSRM',
+
     // map (app/components/RouteMap.tsx)
     'map.startPopupPrefix': '🏁 Départ : ',
     'map.stopPopupPrefix': '📍 Arrêt {sequence} : ',
@@ -204,6 +219,21 @@ export const translations: Record<Locale, Record<string, string>> = {
     'results.printButton': '🖨️ Print Results',
     'results.footerInfo':
       'Route optimized using OSRM (Open Source Routing Machine) • Distances calculated via car routes',
+
+    // schedule (app/schedule/page.tsx)
+    'schedule.title': '📅 Optimized Measurement Schedule',
+    'schedule.generatedAt': 'Generated at',
+    'schedule.totalAddresses': 'Total Addresses',
+    'schedule.totalDistance': 'Total Distance',
+    'schedule.totalDuration': 'Total Time',
+    'schedule.daysScheduled': 'Days Scheduled',
+    'schedule.constraints': '📋 Schedule Constraints',
+    'schedule.maxStopsPerDay': 'Max stops per day',
+    'schedule.workingDays': 'Working days',
+    'schedule.priority': 'Priority',
+    'schedule.routeOptimization': 'Route optimization',
+    'schedule.deadlineFirstGrouping': 'Deadline-first grouping',
+    'schedule.viaOSRM': 'Via OSRM',
 
     // map (app/components/RouteMap.tsx)
     'map.startPopupPrefix': '🏁 Start: ',
