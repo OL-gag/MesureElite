@@ -172,70 +172,77 @@ export default function Schedule() {
                   )
                 }
 
-                // Fallback if startPoint not loaded yet
-                const mapStartPoint = startPoint || {
-                  lat: plan.stops[0]?.address.lat || 45.5,
-                  lon: plan.stops[0]?.address.lon || -73.5,
-                  displayName: 'Start Point',
+                if (!startPoint) {
+                  return (
+                    <div className="text-center text-slate-500 dark:text-slate-400">
+                      📍 Loading map data...
+                    </div>
+                  )
                 }
 
-                // Create complete round-trip route: start → stops → start
-                const allWaypoints = [
-                  {
-                    id: 'start',
-                    routeId: plan.id,
-                    originalAddressId: 'start',
-                    sequence: 0,
-                    lat: mapStartPoint.lat,
-                    lon: mapStartPoint.lon,
-                    displayName: mapStartPoint.displayName,
-                    isStartPoint: true,
-                    isEndPoint: false,
-                  },
-                  ...plan.stops.map((stop, idx) => ({
-                    id: stop.id,
-                    routeId: plan.id,
-                    originalAddressId: stop.addressId,
-                    sequence: idx + 1,
-                    lat: stop.address.lat,
-                    lon: stop.address.lon,
-                    displayName: stop.address.displayName,
-                    isStartPoint: false,
-                    isEndPoint: false,
-                  })),
-                  {
-                    id: 'end',
-                    routeId: plan.id,
-                    originalAddressId: 'end',
-                    sequence: plan.stops.length + 1,
-                    lat: mapStartPoint.lat,
-                    lon: mapStartPoint.lon,
-                    displayName: mapStartPoint.displayName,
-                    isStartPoint: false,
-                    isEndPoint: true,
-                  },
-                ]
-
-                // Create segments between consecutive waypoints
-                const segments = []
-                for (let i = 0; i < allWaypoints.length - 1; i++) {
-                  segments.push({
-                    id: `seg-${i}`,
-                    routeId: plan.id,
-                    fromWaypoint: allWaypoints[i].id,
-                    toWaypoint: allWaypoints[i + 1].id,
-                    sequence: i + 1,
-                    distance: 5000, // Mock distance per segment
-                    duration: 600, // Mock 10min per segment
-                  })
-                }
-
+                // OSRM already returns round-trip route (start → stops → start)
+                // Just use the waypoints and segments from the plan's route geometry
                 const route = {
                   id: plan.id,
                   addressListId: 'schedule',
                   calculatedAt: new Date(),
-                  waypoints: allWaypoints as any,
-                  segments: segments as any,
+                  waypoints: [
+                    {
+                      id: 'start',
+                      routeId: plan.id,
+                      originalAddressId: 'start',
+                      sequence: 0,
+                      lat: startPoint.lat,
+                      lon: startPoint.lon,
+                      displayName: startPoint.displayName,
+                      isStartPoint: true,
+                      isEndPoint: false,
+                    },
+                    ...plan.stops.map((stop, idx) => ({
+                      id: stop.id,
+                      routeId: plan.id,
+                      originalAddressId: stop.addressId,
+                      sequence: idx + 1,
+                      lat: stop.address.lat,
+                      lon: stop.address.lon,
+                      displayName: stop.address.displayName,
+                      isStartPoint: false,
+                      isEndPoint: false,
+                    })),
+                    {
+                      id: 'end',
+                      routeId: plan.id,
+                      originalAddressId: 'end',
+                      sequence: plan.stops.length + 1,
+                      lat: startPoint.lat,
+                      lon: startPoint.lon,
+                      displayName: startPoint.displayName,
+                      isStartPoint: false,
+                      isEndPoint: true,
+                    },
+                  ] as any,
+                  segments: [
+                    // Start to first stop
+                    ...plan.stops.map((stop, idx) => ({
+                      id: `seg-${idx}`,
+                      routeId: plan.id,
+                      fromWaypoint: idx === 0 ? 'start' : plan.stops[idx - 1].id,
+                      toWaypoint: stop.id,
+                      sequence: idx + 1,
+                      distance: idx === 0 ? 0 : stop.distanceFromPrevious || 0,
+                      duration: idx === 0 ? 0 : stop.durationFromPrevious || 0,
+                    })),
+                    // Last stop back to start
+                    {
+                      id: `seg-return`,
+                      routeId: plan.id,
+                      fromWaypoint: plan.stops[plan.stops.length - 1].id,
+                      toWaypoint: 'end',
+                      sequence: plan.stops.length + 1,
+                      distance: 0,
+                      duration: 0,
+                    },
+                  ] as any,
                   totalDistance: plan.metrics.totalDistance,
                   totalDuration: plan.metrics.totalDuration,
                   optimizationGain: 0,
