@@ -13,7 +13,8 @@ const DEFAULT_CONSTRAINTS: ScheduleConstraints = {
 export async function generateMeasurementSchedule(
   addresses: AddressInput[],
   constraints: ScheduleConstraints = DEFAULT_CONSTRAINTS,
-  osrmOptimizer: (waypoints: Array<{ lat: number; lon: number }>) => Promise<RouteResponse>
+  osrmOptimizer: (waypoints: Array<{ lat: number; lon: number }>) => Promise<RouteResponse>,
+  startPoint?: AddressInput
 ): Promise<MeasurementSchedule> {
   // Validate addresses have dates
   const validAddresses = addresses.filter((a) => a.measurementDate && a.deadlineDate && a.geocodedCoords)
@@ -32,10 +33,26 @@ export async function generateMeasurementSchedule(
   // Optimize routes for each day via OSRM
   const dailyPlans: DailyPlan[] = []
   for (const [dayDate, addrsForDay] of dailyGroups) {
-    const waypoints = addrsForDay.map((a) => ({
-      lat: a.geocodedCoords!.lat,
-      lon: a.geocodedCoords!.lon,
-    }))
+    // Create round-trip route: start → stops → start
+    const waypoints = []
+    if (startPoint?.geocodedCoords) {
+      waypoints.push({
+        lat: startPoint.geocodedCoords.lat,
+        lon: startPoint.geocodedCoords.lon,
+      })
+    }
+    waypoints.push(
+      ...addrsForDay.map((a) => ({
+        lat: a.geocodedCoords!.lat,
+        lon: a.geocodedCoords!.lon,
+      }))
+    )
+    if (startPoint?.geocodedCoords) {
+      waypoints.push({
+        lat: startPoint.geocodedCoords.lat,
+        lon: startPoint.geocodedCoords.lon,
+      })
+    }
 
     try {
       const route = await osrmOptimizer(waypoints)
@@ -158,7 +175,11 @@ function createDailyPlan(
   const date = new Date(dayDate + 'T00:00:00')
   const dayOfWeek = date.toLocaleDateString('en-US', { weekday: 'long' })
 
-  const stops: DailyStop[] = route.route.waypoints.map((wp) => {
+  // Filter waypoints: skip the synthetic start/end points added for round-trip
+  // Keep only the actual address stops (middle waypoints)
+  const stopsWaypoints = route.route.waypoints.slice(1, -1)
+
+  const stops: DailyStop[] = stopsWaypoints.map((wp, idx) => {
     // Find matching address by coordinates
     const wpLat = typeof wp.lat === 'string' ? parseFloat(wp.lat) : wp.lat
     const wpLon = typeof wp.lon === 'string' ? parseFloat(wp.lon) : wp.lon
@@ -167,7 +188,6 @@ function createDailyPlan(
              Math.abs(a.geocodedCoords!.lon - wpLon) < 0.0001
     ) || addresses[0]
     const daysLeft = daysUntilDate(originalAddr.deadlineDate!, date)
-    const idx = route.route.waypoints.indexOf(wp)
 
     return {
       id: `stop-${date.getTime()}-${idx}`,
@@ -187,8 +207,8 @@ function createDailyPlan(
         daysUntilDeadline: daysLeft,
       },
       priority: getPriority(originalAddr.deadlineDate!),
-      distanceFromPrevious: idx === 0 ? undefined : route.route.segments[idx - 1]?.distance,
-      durationFromPrevious: idx === 0 ? undefined : route.route.segments[idx - 1]?.duration,
+      distanceFromPrevious: idx === 0 ? undefined : route.route.segments[idx]?.distance,
+      durationFromPrevious: idx === 0 ? undefined : route.route.segments[idx]?.duration,
     }
   })
 

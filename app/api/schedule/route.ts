@@ -16,7 +16,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(error, { status: 400 })
     }
 
-    // Filter out start point and keep only stops with valid dates and coordinates
+    // Extract start point and stops with valid dates/coordinates
+    const startPoint = addresses.find((a: any) => a.isStartPoint)
     const validAddresses = addresses.filter(
       (a: any) =>
         !a.isStartPoint &&
@@ -135,8 +136,14 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Generate schedule
-    const schedule = await generateMeasurementSchedule(parsedAddresses, scheduleConstraints, osrmOptimizer)
+    // Generate schedule with start point for round-trip routes
+    const parsedStartPoint = startPoint ? {
+      ...startPoint,
+      measurementDate: new Date(),
+      deadlineDate: new Date(),
+    } : null
+
+    const schedule = await generateMeasurementSchedule(parsedAddresses, scheduleConstraints, osrmOptimizer, parsedStartPoint as any)
 
     return NextResponse.json(schedule, { status: 200 })
   } catch (err) {
