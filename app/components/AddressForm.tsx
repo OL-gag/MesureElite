@@ -175,7 +175,17 @@ export default function AddressForm({
 
   const updateStopMeasurementDate = useCallback((index: number, dateStr: string) => {
     setStopMeasurementDates((prev) => prev.map((d, i) => (i === index ? dateStr : d)))
-  }, [])
+    // Auto-adjust deadline if it's before the measurement date
+    setStopDeadlineDates((prev) => {
+      const measurementDate = new Date(dateStr + 'T00:00:00')
+      const deadlineDate = new Date((prev[index] || todayISO) + 'T00:00:00')
+      if (deadlineDate < measurementDate) {
+        // Auto-adjust deadline to match measurement date
+        return prev.map((d, i) => (i === index ? dateStr : d))
+      }
+      return prev
+    })
+  }, [todayISO])
 
   const updateStopDeadlineDate = useCallback((index: number, dateStr: string) => {
     setStopDeadlineDates((prev) => prev.map((d, i) => (i === index ? dateStr : d)))
@@ -263,16 +273,6 @@ export default function AddressForm({
       if (filledStops.length < MIN_VALID_STOPS) {
         setFormError(t('addressForm.errorMinStops', { min: MIN_VALID_STOPS }))
         return
-      }
-
-      // Validate that deadline >= measurement date for all stops
-      for (let i = 0; i < filledStops.length; i++) {
-        const measurementDate = new Date(stopMeasurementDates[i] + 'T00:00:00')
-        const deadlineDate = new Date(stopDeadlineDates[i] + 'T00:00:00')
-        if (deadlineDate < measurementDate) {
-          setFormError(t('addressForm.errorDeadlineBeforeMeasurement'))
-          return
-        }
       }
 
       setGeocoding(true)
@@ -451,9 +451,6 @@ export default function AddressForm({
                 className="input-field"
                 disabled={isBusy}
               />
-              {stopDeadlineDates[index] && stopMeasurementDates[index] && new Date(stopDeadlineDates[index]) < new Date(stopMeasurementDates[index]) && (
-                <p className="error-message text-xs mt-1">⚠ {t('addressForm.errorDeadlineBeforeMeasurement')}</p>
-              )}
             </div>
           </div>
         ))}
