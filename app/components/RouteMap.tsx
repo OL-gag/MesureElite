@@ -28,6 +28,10 @@ export default function RouteMap({ route }: RouteMapProps) {
   const { t } = useLanguage()
   const mapRef = useRef<any>(null)
 
+  if (!route?.waypoints || route.waypoints.length === 0) {
+    return <div className="text-center text-slate-500 dark:text-slate-400 py-8">No waypoints to display</div>
+  }
+
   // The synthetic "return to start" waypoint shares its position (and id)
   // with the real start marker — skip it so it doesn't render a duplicate
   // marker stacked on top of the start.
@@ -36,7 +40,7 @@ export default function RouteMap({ route }: RouteMapProps) {
   const markers = visibleWaypoints.map((wp) => {
     const isStart = wp.isStartPoint
     // Colored to match the segment arriving at this stop (see colorForSequence).
-    const color = isStart ? { bg: '#22c55e', border: '#16a34a' } : colorForSequence(wp.sequence - 1)
+    const color = isStart ? { bg: '#22c55e', border: '#16a34a' } : (colorForSequence(wp.sequence - 1) || { bg: '#3b82f6', border: '#1d4ed8' })
     const icon = L.divIcon({
       className: isStart ? 'map-marker-start' : 'map-marker-waypoint',
       html: `
