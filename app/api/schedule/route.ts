@@ -94,13 +94,14 @@ export async function POST(request: NextRequest) {
         })
 
         if (!response.ok) {
-          const error = await response.json().catch(() => ({}))
-          throw new Error(error.error || 'Route calculation failed')
+          const text = await response.text()
+          console.error(`Route API error (${response.status}):`, text)
+          throw new Error(`Route API returned ${response.status}`)
         }
 
         return await response.json()
       } catch (err) {
-        console.error('OSRM optimization failed, using mock data:', err)
+        console.error('OSRM optimization failed, using mock data:', err instanceof Error ? err.message : String(err))
         // Fallback: return mock route with basic metrics
         return {
           route: {
