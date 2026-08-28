@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { AddressInput, ScheduleConstraints, ApiErrorBody } from '@/app/lib/types'
 import { generateMeasurementSchedule } from '@/app/lib/scheduleOptimizer'
+import { calculateRoute } from '@/app/lib/osrm'
 
 export async function POST(request: NextRequest) {
   try {
@@ -52,7 +53,7 @@ export async function POST(request: NextRequest) {
       allowOverdueAddresses: true,
     }
 
-    // Call OSRM for route optimization
+    // Call OSRM for route optimization directly
     const osrmOptimizer = async (waypoints: Array<{ lat: number; lon: number }>) => {
       if (waypoints.length < 2) {
         return {
@@ -75,8 +76,8 @@ export async function POST(request: NextRequest) {
               fromWaypoint: `wp-${idx}`,
               toWaypoint: `wp-${idx + 1}`,
               sequence: idx + 1,
-              distance: 5000, // Mock 5km per segment
-              duration: 600, // Mock 10min per segment
+              distance: 5000,
+              duration: 600,
             })),
             totalDistance: (waypoints.length - 1) * 5000,
             totalDuration: (waypoints.length - 1) * 600,
@@ -87,23 +88,19 @@ export async function POST(request: NextRequest) {
       }
 
       try {
-        const origin = request.nextUrl.origin
-        const response = await fetch(`${origin}/api/route`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ waypoints }),
-        })
+        // Call OSRM directly instead of via /api/route
+        const validatedWaypoints = waypoints.map((wp, i) => ({
+          id: `wp-${i}`,
+          lat: wp.lat,
+          lon: wp.lon,
+          displayName: `Stop ${i + 1}`,
+        }))
 
-        if (!response.ok) {
-          const text = await response.text()
-          console.error(`Route API error (${response.status}):`, text)
-          throw new Error(`Route API returned ${response.status}`)
-        }
-
-        return await response.json()
+        const route = await calculateRoute(validatedWaypoints)
+        return { route }
       } catch (err) {
         console.error('OSRM optimization failed, using mock data:', err instanceof Error ? err.message : String(err))
-        // Fallback: return mock route with basic metrics
+        // Fallback: return mock route
         return {
           route: {
             id: 'fallback-route',
