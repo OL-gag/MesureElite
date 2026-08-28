@@ -4,8 +4,10 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import ErrorBoundary from '@/app/components/ErrorBoundary'
 import DailyPlanCard from '@/app/components/DailyPlanCard'
+import RouteMap from '@/app/components/RouteMap'
 import { MeasurementSchedule } from '@/app/lib/types'
 import { useLanguage } from '@/app/lib/i18n/LanguageContext'
+import { formatDateToISO } from '@/app/lib/utils'
 
 export default function Schedule() {
   const router = useRouter()
@@ -13,6 +15,7 @@ export default function Schedule() {
   const [schedule, setSchedule] = useState<MeasurementSchedule | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string>('')
+  const [selectedDateIndex, setSelectedDateIndex] = useState(0)
 
   useEffect(() => {
     const loadSchedule = async () => {
@@ -119,24 +122,61 @@ export default function Schedule() {
           </div>
         </section>
 
-        {/* Urgent Warning */}
-        {schedule.metadata.addressesOnDeadline > 0 && (
-          <section className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 rounded-lg">
-            <p className="text-red-800 dark:text-red-300 font-semibold">
-              ⚠️ {schedule.metadata.addressesOnDeadline} address{schedule.metadata.addressesOnDeadline !== 1 ? 'es' : ''} with
-              urgent deadlines (next 24 hours)
-            </p>
-          </section>
-        )}
+        {/* Daily Plans with Map */}
+        <section className="space-y-4">
+          {/* Date Tabs */}
+          <div className="flex flex-wrap gap-2 border-b border-slate-200 dark:border-slate-700">
+            {schedule.dailyPlans.map((plan, idx) => (
+              <button
+                key={plan.id}
+                onClick={() => setSelectedDateIndex(idx)}
+                className={`px-4 py-2 font-medium border-b-2 transition-colors ${
+                  selectedDateIndex === idx
+                    ? 'border-blue-600 text-blue-600 dark:text-blue-400'
+                    : 'border-transparent text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                }`}
+              >
+                📅 {formatDateToISO(plan.date)}
+              </button>
+            ))}
+          </div>
 
-        {/* Daily Plans */}
-        <section className="space-y-6">
-          <h2 className="text-2xl font-bold text-slate-900 dark:text-white">
-            📋 Daily Routes
-          </h2>
-          {schedule.dailyPlans.map((plan) => (
-            <DailyPlanCard key={plan.id} plan={plan} />
-          ))}
+          {/* Map and Plan */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            {/* Map */}
+            <div className="lg:col-span-2 card">
+              {(() => {
+                const plan = schedule.dailyPlans[selectedDateIndex]
+                const route = {
+                  id: plan.id,
+                  addressListId: 'schedule',
+                  calculatedAt: new Date(),
+                  waypoints: plan.stops.map((stop, idx) => ({
+                    id: stop.id,
+                    routeId: plan.id,
+                    originalAddressId: stop.addressId,
+                    sequence: idx + 1,
+                    lat: stop.address.lat,
+                    lon: stop.address.lon,
+                    displayName: stop.address.displayName,
+                    isStartPoint: idx === 0,
+                    isEndPoint: idx === plan.stops.length - 1,
+                  })),
+                  segments: [] as any[],
+                  totalDistance: plan.metrics.totalDistance,
+                  totalDuration: plan.metrics.totalDuration,
+                  optimizationGain: 0,
+                  status: 'success' as const,
+                }
+                return <RouteMap route={route} />
+              })()}
+            </div>
+
+            {/* Daily Plan Card */}
+            <div className="lg:col-span-1">
+              <DailyPlanCard plan={schedule.dailyPlans[selectedDateIndex]} />
+            </div>
+          </div>
         </section>
 
         {/* Constraints Info */}
