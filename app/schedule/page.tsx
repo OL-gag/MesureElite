@@ -18,10 +18,25 @@ export default function Schedule() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string>('')
   const [selectedDateIndex, setSelectedDateIndex] = useState(0)
+  const [startPoint, setStartPoint] = useState<{ lat: number; lon: number; displayName: string } | null>(null)
 
   useEffect(() => {
     const loadSchedule = async () => {
       try {
+        // Load start point from addresses
+        const storedAddresses = sessionStorage.getItem('addresses')
+        if (storedAddresses) {
+          const addresses = JSON.parse(storedAddresses)
+          const startAddr = addresses[0]
+          if (startAddr?.geocodedCoords) {
+            setStartPoint({
+              lat: startAddr.geocodedCoords.lat,
+              lon: startAddr.geocodedCoords.lon,
+              displayName: startAddr.geocodedCoords.displayName,
+            })
+          }
+        }
+
         // Load schedule from sessionStorage
         const storedSchedule = sessionStorage.getItem('schedule')
         if (storedSchedule) {
@@ -149,11 +164,22 @@ export default function Schedule() {
             <div className="lg:col-span-2 card">
               {(() => {
                 const plan = schedule.dailyPlans[selectedDateIndex]
-                const route = {
-                  id: plan.id,
-                  addressListId: 'schedule',
-                  calculatedAt: new Date(),
-                  waypoints: plan.stops.map((stop, idx) => ({
+                if (!startPoint) return <div className="text-center py-8">Loading map...</div>
+
+                // Create complete round-trip route: start → stops → start
+                const allWaypoints = [
+                  {
+                    id: 'start',
+                    routeId: plan.id,
+                    originalAddressId: 'start',
+                    sequence: 0,
+                    lat: startPoint.lat,
+                    lon: startPoint.lon,
+                    displayName: startPoint.displayName,
+                    isStartPoint: true,
+                    isEndPoint: false,
+                  },
+                  ...plan.stops.map((stop, idx) => ({
                     id: stop.id,
                     routeId: plan.id,
                     originalAddressId: stop.addressId,
@@ -161,10 +187,42 @@ export default function Schedule() {
                     lat: stop.address.lat,
                     lon: stop.address.lon,
                     displayName: stop.address.displayName,
-                    isStartPoint: idx === 0,
-                    isEndPoint: idx === plan.stops.length - 1,
+                    isStartPoint: false,
+                    isEndPoint: false,
                   })),
-                  segments: [] as any[],
+                  {
+                    id: 'end',
+                    routeId: plan.id,
+                    originalAddressId: 'end',
+                    sequence: plan.stops.length + 1,
+                    lat: startPoint.lat,
+                    lon: startPoint.lon,
+                    displayName: startPoint.displayName,
+                    isStartPoint: false,
+                    isEndPoint: true,
+                  },
+                ]
+
+                // Create segments between consecutive waypoints
+                const segments = []
+                for (let i = 0; i < allWaypoints.length - 1; i++) {
+                  segments.push({
+                    id: `seg-${i}`,
+                    routeId: plan.id,
+                    fromWaypoint: allWaypoints[i].id,
+                    toWaypoint: allWaypoints[i + 1].id,
+                    sequence: i + 1,
+                    distance: 5000, // Mock distance per segment
+                    duration: 600, // Mock 10min per segment
+                  })
+                }
+
+                const route = {
+                  id: plan.id,
+                  addressListId: 'schedule',
+                  calculatedAt: new Date(),
+                  waypoints: allWaypoints as any,
+                  segments: segments as any,
                   totalDistance: plan.metrics.totalDistance,
                   totalDuration: plan.metrics.totalDuration,
                   optimizationGain: 0,
