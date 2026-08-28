@@ -161,9 +161,23 @@ export default function Schedule() {
           {/* Map and Plan */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
             {/* Map */}
-            <div className="lg:col-span-2 card bg-slate-100 dark:bg-slate-800 flex items-center justify-center min-h-[400px]">
-              {startPoint ? (() => {
+            <div className="lg:col-span-2 card bg-slate-100 dark:bg-slate-800 flex items-center justify-center min-h-[400px] relative">
+              {(() => {
                 const plan = schedule.dailyPlans[selectedDateIndex]
+                if (!plan || !plan.stops || plan.stops.length === 0) {
+                  return (
+                    <div className="text-center text-slate-500 dark:text-slate-400">
+                      ⚠️ No stops for this day
+                    </div>
+                  )
+                }
+
+                // Fallback if startPoint not loaded yet
+                const mapStartPoint = startPoint || {
+                  lat: plan.stops[0]?.address.lat || 45.5,
+                  lon: plan.stops[0]?.address.lon || -73.5,
+                  displayName: 'Start Point',
+                }
 
                 // Create complete round-trip route: start → stops → start
                 const allWaypoints = [
@@ -172,9 +186,9 @@ export default function Schedule() {
                     routeId: plan.id,
                     originalAddressId: 'start',
                     sequence: 0,
-                    lat: startPoint.lat,
-                    lon: startPoint.lon,
-                    displayName: startPoint.displayName,
+                    lat: mapStartPoint.lat,
+                    lon: mapStartPoint.lon,
+                    displayName: mapStartPoint.displayName,
                     isStartPoint: true,
                     isEndPoint: false,
                   },
@@ -194,9 +208,9 @@ export default function Schedule() {
                     routeId: plan.id,
                     originalAddressId: 'end',
                     sequence: plan.stops.length + 1,
-                    lat: startPoint.lat,
-                    lon: startPoint.lon,
-                    displayName: startPoint.displayName,
+                    lat: mapStartPoint.lat,
+                    lon: mapStartPoint.lon,
+                    displayName: mapStartPoint.displayName,
                     isStartPoint: false,
                     isEndPoint: true,
                   },
@@ -228,11 +242,7 @@ export default function Schedule() {
                   status: 'success' as const,
                 }
                 return <RouteMap route={route} />
-              })() : (
-                <div className="text-center text-slate-500 dark:text-slate-400">
-                  📍 Loading map...
-                </div>
-              )}
+              })()}
             </div>
 
             {/* Daily Plan Card */}
