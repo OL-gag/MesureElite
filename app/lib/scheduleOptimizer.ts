@@ -158,9 +158,16 @@ function createDailyPlan(
   const date = new Date(dayDate + 'T00:00:00')
   const dayOfWeek = date.toLocaleDateString('en-US', { weekday: 'long' })
 
-  const stops: DailyStop[] = route.route.waypoints.map((_wp, idx) => {
-    const originalAddr = addresses[route.route.segments[idx]?.sequence - 1] || addresses[0]
+  const stops: DailyStop[] = route.route.waypoints.map((wp) => {
+    // Find matching address by coordinates
+    const wpLat = typeof wp.lat === 'string' ? parseFloat(wp.lat) : wp.lat
+    const wpLon = typeof wp.lon === 'string' ? parseFloat(wp.lon) : wp.lon
+    const originalAddr = addresses.find(
+      (a) => Math.abs(a.geocodedCoords!.lat - wpLat) < 0.0001 &&
+             Math.abs(a.geocodedCoords!.lon - wpLon) < 0.0001
+    ) || addresses[0]
     const daysLeft = daysUntilDate(originalAddr.deadlineDate!, date)
+    const idx = route.route.waypoints.indexOf(wp)
 
     return {
       id: `stop-${date.getTime()}-${idx}`,
