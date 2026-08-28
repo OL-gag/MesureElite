@@ -86,7 +86,8 @@ export async function POST(request: NextRequest) {
       }
 
       try {
-        const response = await fetch('/api/route', {
+        const origin = request.nextUrl.origin
+        const response = await fetch(`${origin}/api/route`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ waypoints }),
