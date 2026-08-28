@@ -1,13 +1,15 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import dynamic from 'next/dynamic'
 import { useRouter } from 'next/navigation'
 import ErrorBoundary from '@/app/components/ErrorBoundary'
 import DailyPlanCard from '@/app/components/DailyPlanCard'
-import RouteMap from '@/app/components/RouteMap'
 import { MeasurementSchedule } from '@/app/lib/types'
 import { useLanguage } from '@/app/lib/i18n/LanguageContext'
 import { formatDateToISO } from '@/app/lib/utils'
+
+const RouteMap = dynamic(() => import('@/app/components/RouteMap'), { ssr: false })
 
 export default function Schedule() {
   const router = useRouter()
