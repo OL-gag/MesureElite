@@ -104,14 +104,15 @@ export default function RouteMap({ route }: RouteMapProps) {
     )
   })
 
-  const bounds = L.latLngBounds(visibleWaypoints.map((wp): [number, number] => [wp.lat, wp.lon]))
+  const boundsArray = visibleWaypoints.map((wp): [number, number] => [wp.lat, wp.lon])
+  const bounds = boundsArray.length > 0 ? L.latLngBounds(boundsArray) : L.latLngBounds([[45.5, -73.5], [45.6, -73.4]])
 
   return (
     <div className="w-full h-[28rem] sm:h-[32rem] lg:h-[36rem] rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700">
       <MapContainer
         ref={mapRef}
         bounds={bounds}
-        zoom={13}
+        boundsOptions={{ padding: [50, 50] }}
         scrollWheelZoom={true}
         className="w-full h-full"
       >
