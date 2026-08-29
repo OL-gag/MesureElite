@@ -1,12 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { AddressInput, ScheduleConstraints, ApiErrorBody } from '@/app/lib/types'
-import { generateMeasurementSchedule } from '@/app/lib/scheduleOptimizer'
+import { generateMeasurementSchedule, DEFAULT_CONSTRAINTS } from '@/app/lib/scheduleOptimizer'
 import { calculateRoute } from '@/app/lib/osrm'
+
+// Date-only strings ('YYYY-MM-DD', the user's calendar day) are anchored at
+// the server's local midnight so all schedule math shares one anchor; full ISO
+// instants (older clients) pass through unchanged.
+function parseDateInput(value: string): Date {
+  return /^\d{4}-\d{2}-\d{2}$/.test(value) ? new Date(value + 'T00:00:00') : new Date(value)
+}
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { addresses, constraints } = body
+    const { addresses, constraints, clientToday } = body
 
     // Validate input
     if (!Array.isArray(addresses) || addresses.length === 0) {
@@ -25,8 +32,8 @@ export async function POST(request: NextRequest) {
         a.measurementDate &&
         a.deadlineDate &&
         a.geocodedCoords &&
-        a.geocodedCoords.lat &&
-        a.geocodedCoords.lon
+        a.geocodedCoords.lat != null &&
+        a.geocodedCoords.lon != null
     )
 
     if (validAddresses.length === 0) {
@@ -37,21 +44,21 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(error, { status: 400 })
     }
 
-    // Parse dates (they come as ISO strings)
+    // Parse dates (calendar-day strings from the client, or ISO instants)
     const parsedAddresses: AddressInput[] = validAddresses.map((a: any) => ({
       ...a,
-      measurementDate: new Date(a.measurementDate),
-      deadlineDate: new Date(a.deadlineDate),
+      measurementDate: parseDateInput(a.measurementDate),
+      deadlineDate: parseDateInput(a.deadlineDate),
     }))
 
-    // Use provided constraints or defaults
-    const scheduleConstraints: ScheduleConstraints = constraints || {
-      maxStopsPerDay: 6,
-      workingDays: [1, 2, 3, 4, 5],
-      prioritizeDeadlines: true,
-      balanceLoadAndDistance: true,
-      allowOverdueAddresses: true,
-    }
+    // "Today" from the client's calendar when provided — the server clock runs
+    // in UTC and would otherwise schedule evening submissions a day late.
+    const today =
+      typeof clientToday === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(clientToday)
+        ? parseDateInput(clientToday)
+        : undefined
+
+    const scheduleConstraints: ScheduleConstraints = constraints || DEFAULT_CONSTRAINTS
 
     // Route each day via OSRM directly (calling our own /api/route over HTTP
     // fails behind Vercel preview protection). calculateRoute closes the loop
@@ -67,14 +74,14 @@ export async function POST(request: NextRequest) {
       return { route }
     }
 
-    // Generate schedule with start point for round-trip routes
-    const parsedStartPoint = startPoint ? {
-      ...startPoint,
-      measurementDate: new Date(),
-      deadlineDate: new Date(),
-    } : null
-
-    const schedule = await generateMeasurementSchedule(parsedAddresses, scheduleConstraints, osrmOptimizer, parsedStartPoint as any)
+    // Generate schedule with the start point for round-trip routes
+    const schedule = await generateMeasurementSchedule(
+      parsedAddresses,
+      scheduleConstraints,
+      osrmOptimizer,
+      startPoint,
+      today
+    )
 
     return NextResponse.json(schedule, { status: 200 })
   } catch (err) {

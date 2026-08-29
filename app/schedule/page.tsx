@@ -13,40 +13,27 @@ const RouteMap = dynamic(() => import('@/app/components/RouteMap'), { ssr: false
 
 export default function Schedule() {
   const router = useRouter()
-  const { t } = useLanguage()
+  const { t, locale } = useLanguage()
   const [schedule, setSchedule] = useState<MeasurementSchedule | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string>('')
   const [selectedDateIndex, setSelectedDateIndex] = useState(0)
-  const [startPoint, setStartPoint] = useState<{ lat: number; lon: number; displayName: string } | null>(null)
 
   useEffect(() => {
     const loadSchedule = async () => {
       try {
-        // Load start point from addresses
-        const storedAddresses = sessionStorage.getItem('addresses')
-        if (storedAddresses) {
-          const addresses = JSON.parse(storedAddresses)
-          const startAddr = addresses[0]
-          if (startAddr?.geocodedCoords) {
-            setStartPoint({
-              lat: startAddr.geocodedCoords.lat,
-              lon: startAddr.geocodedCoords.lon,
-              displayName: startAddr.geocodedCoords.displayName,
-            })
-          }
-        }
-
         // Load schedule from sessionStorage
         const storedSchedule = sessionStorage.getItem('schedule')
         if (storedSchedule) {
           const parsed = JSON.parse(storedSchedule)
-          // Parse dates back to Date objects
+          // Parse dates back to Date objects. Plan dates were anchored at the
+          // server's midnight (UTC on Vercel): re-anchor the calendar day at
+          // LOCAL midnight so evening-vs-UTC offsets can't shift the day shown.
           const withDates = {
             ...parsed,
             dailyPlans: parsed.dailyPlans.map((plan: any) => ({
               ...plan,
-              date: new Date(plan.date),
+              date: new Date(String(plan.date).slice(0, 10) + 'T00:00:00'),
               stops: plan.stops.map((stop: any) => ({
                 ...stop,
                 measurements: {
@@ -164,88 +151,24 @@ export default function Schedule() {
             <div className="lg:col-span-2 card bg-slate-100 dark:bg-slate-800 flex items-center justify-center min-h-[400px] relative">
               {(() => {
                 const plan = schedule.dailyPlans[selectedDateIndex]
-                if (!plan || !plan.stops || plan.stops.length === 0) {
+                // Every plan (optimized or fallback) carries its round-trip
+                // route — render it exactly like the results page does.
+                if (!plan?.route || plan.route.waypoints.length === 0) {
                   return (
                     <div className="text-center text-slate-500 dark:text-slate-400">
-                      ⚠️ No stops for this day
+                      ⚠️ {t('schedule.noStops')}
                     </div>
                   )
                 }
-
-                // Preferred: the real OSRM round-trip route computed for this
-                // day (start → stops → back to start), rendered exactly like
-                // the results page — real road geometry, colors, start marker.
-                if (plan.route && plan.route.waypoints.length > 0) {
-                  return (
-                    <RouteMap
-                      route={{
-                        ...plan.route,
-                        addressListId: 'schedule',
-                        calculatedAt: new Date(),
-                      }}
-                    />
-                  )
-                }
-
-                // Fallback (route optimization failed for this day): straight
-                // lines between the start point and the day's stops.
-                const mapStart = startPoint || {
-                  lat: plan.stops[0].address.lat,
-                  lon: plan.stops[0].address.lon,
-                  displayName: 'Start Point',
-                }
-                const fallbackWaypoints = [
-                  {
-                    id: 'start',
-                    routeId: plan.id,
-                    originalAddressId: 'start',
-                    sequence: 1,
-                    lat: mapStart.lat,
-                    lon: mapStart.lon,
-                    displayName: mapStart.displayName,
-                    isStartPoint: true,
-                    isEndPoint: false,
-                  },
-                  ...plan.stops.map((stop, idx) => ({
-                    id: stop.id,
-                    routeId: plan.id,
-                    originalAddressId: stop.addressId,
-                    sequence: idx + 2,
-                    lat: stop.address.lat,
-                    lon: stop.address.lon,
-                    displayName: stop.address.displayName,
-                    isStartPoint: false,
-                    isEndPoint: false,
-                  })),
-                ]
-                const fallbackRoute = {
-                  id: plan.id,
-                  addressListId: 'schedule',
-                  calculatedAt: new Date(),
-                  waypoints: [
-                    ...fallbackWaypoints,
-                    {
-                      ...fallbackWaypoints[0],
-                      sequence: fallbackWaypoints.length + 1,
-                      isStartPoint: false,
-                      isEndPoint: true,
-                    },
-                  ],
-                  segments: fallbackWaypoints.map((wp, i) => ({
-                    id: `seg-${i}`,
-                    routeId: plan.id,
-                    fromWaypoint: wp.id,
-                    toWaypoint: fallbackWaypoints[(i + 1) % fallbackWaypoints.length].id,
-                    sequence: i + 1,
-                    distance: 0,
-                    duration: 0,
-                  })),
-                  totalDistance: plan.metrics.totalDistance,
-                  totalDuration: plan.metrics.totalDuration,
-                  optimizationGain: 0,
-                  status: 'success' as const,
-                }
-                return <RouteMap route={fallbackRoute} />
+                return (
+                  <RouteMap
+                    route={{
+                      ...plan.route,
+                      addressListId: 'schedule',
+                      calculatedAt: new Date(),
+                    }}
+                  />
+                )
               })()}
             </div>
 
@@ -263,7 +186,18 @@ export default function Schedule() {
           </h3>
           <ul className="text-sm text-slate-600 dark:text-slate-400 space-y-1">
             <li>• {t('schedule.maxStopsPerDay')}: {schedule.constraints.maxStopsPerDay}</li>
-            <li>• {t('schedule.workingDays')}: Monday - Friday</li>
+            <li>
+              • {t('schedule.workingDays')}:{' '}
+              {schedule.constraints.workingDays
+                // 2024-01-01 is a Monday, so UTC day d of Jan 2024 = ISO weekday d
+                .map((d) =>
+                  new Date(Date.UTC(2024, 0, d)).toLocaleDateString(locale, {
+                    weekday: 'long',
+                    timeZone: 'UTC',
+                  })
+                )
+                .join(', ')}
+            </li>
             <li>• {t('schedule.priority')}: {t('schedule.deadlineFirstGrouping')}</li>
             <li>• {t('schedule.routeOptimization')}: {t('schedule.viaOSRM')}</li>
           </ul>
@@ -272,11 +206,9 @@ export default function Schedule() {
         {/* Action Buttons */}
         <section className="flex gap-3 justify-center">
           <button
-            onClick={() => {
-              sessionStorage.removeItem('schedule')
-              sessionStorage.removeItem('addresses')
-              router.push('/')
-            }}
+            // Keep 'addresses'/'addressTexts' in sessionStorage: the form uses
+            // them to restore the entered addresses AND their dates (FR-006).
+            onClick={() => router.push('/')}
             className="button-secondary"
           >
             {t('results.editAddressesButton')}

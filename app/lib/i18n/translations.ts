@@ -77,11 +77,7 @@ export const translations: Record<Locale, Record<string, string>> = {
 
     // measurement dates (US1 & US2)
     'addressForm.measurementDateLabel': 'Date de mesure',
-    'addressForm.measurementDatePlaceholder': 'Sélectionner la date préférée pour la mesure',
     'addressForm.deadlineDateLabel': 'Date limite',
-    'addressForm.deadlineDatePlaceholder': 'Sélectionner la date limite (au plus tard)',
-    'addressForm.dateFormatError': 'Date invalide',
-    'addressForm.errorDeadlineBeforeMeasurement': 'La date limite doit être après la date de mesure',
 
     // results (app/results/page.tsx)
     'results.loading': 'Chargement...',
@@ -118,6 +114,9 @@ export const translations: Record<Locale, Record<string, string>> = {
     'schedule.viaOSRM': 'Via OSRM',
     'schedule.startLabel': 'Départ',
     'schedule.returnLabel': 'Retour au point de départ',
+    'schedule.stopsCount': '{count} arrêt(s)',
+    'schedule.noStops': 'Aucun arrêt pour cette journée',
+    'schedule.exceedsMaxStops': 'Cette journée dépasse le maximum de {max} arrêts',
 
     // map (app/components/RouteMap.tsx)
     'map.startPopupPrefix': '🏁 Départ : ',
@@ -197,11 +196,7 @@ export const translations: Record<Locale, Record<string, string>> = {
 
     // measurement dates (US1 & US2)
     'addressForm.measurementDateLabel': 'Measurement Date',
-    'addressForm.measurementDatePlaceholder': 'Select preferred measurement date',
     'addressForm.deadlineDateLabel': 'Deadline Date',
-    'addressForm.deadlineDatePlaceholder': 'Select deadline date (must complete by)',
-    'addressForm.dateFormatError': 'Invalid date',
-    'addressForm.errorDeadlineBeforeMeasurement': 'Deadline date must be after measurement date',
 
     // results (app/results/page.tsx)
     'results.loading': 'Loading...',
@@ -238,6 +233,9 @@ export const translations: Record<Locale, Record<string, string>> = {
     'schedule.viaOSRM': 'Via OSRM',
     'schedule.startLabel': 'Start',
     'schedule.returnLabel': 'Return to start',
+    'schedule.stopsCount': '{count} stop(s)',
+    'schedule.noStops': 'No stops for this day',
+    'schedule.exceedsMaxStops': 'This day exceeds the maximum of {max} stops',
 
     // map (app/components/RouteMap.tsx)
     'map.startPopupPrefix': '🏁 Start: ',

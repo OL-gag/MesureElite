@@ -9,8 +9,9 @@ interface DailyPlanCardProps {
 }
 
 export default function DailyPlanCard({ plan }: DailyPlanCardProps) {
-  const { t } = useLanguage()
+  const { t, locale } = useLanguage()
   const dateStr = formatDateToISO(plan.date)
+  const dayOfWeek = plan.date.toLocaleDateString(locale, { weekday: 'long' })
 
   // The day's route is a round trip: surface the start address at the top and
   // the return leg at the bottom of the itinerary.
@@ -21,10 +22,10 @@ export default function DailyPlanCard({ plan }: DailyPlanCardProps) {
     <div className="card space-y-4">
       <div>
         <h3 className="text-xl font-bold text-slate-900 dark:text-white">
-          📅 {plan.dayOfWeek.toUpperCase()} {dateStr}
+          📅 {dayOfWeek.toUpperCase()} {dateStr}
         </h3>
         <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
-          {plan.stops.length} stop{plan.stops.length !== 1 ? 's' : ''} •{' '}
+          {t('schedule.stopsCount', { count: plan.stops.length })} •{' '}
           {formatDistance(plan.metrics.totalDistance)} • {formatDuration(plan.metrics.totalDuration)}
         </p>
       </div>
@@ -92,7 +93,7 @@ export default function DailyPlanCard({ plan }: DailyPlanCardProps) {
 
       {!plan.metrics.feasible && (
         <div className="p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700 rounded text-sm text-yellow-800 dark:text-yellow-300">
-          ⚠️ This day exceeds the maximum {plan.constraints.maxStops} stops
+          ⚠️ {t('schedule.exceedsMaxStops', { max: plan.constraints.maxStops })}
         </div>
       )}
     </div>

@@ -99,7 +99,10 @@ export default function Results() {
           <div className="space-y-3">
             {route.waypoints.map((waypoint) => {
               const segment = route.segments.find((s) => s.sequence === waypoint.sequence)
-              const addressData = addresses?.[waypoint.sequence - 1]
+              // Waypoint ids carry the source address id (see app/page.tsx), so
+              // look up by id — positional indexing breaks when an invalid
+              // address was filtered out of the route.
+              const addressData = addresses?.find((a) => a.id === waypoint.originalAddressId)
               return (
                 <div
                   key={waypoint.id}

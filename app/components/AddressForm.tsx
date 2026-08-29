@@ -256,7 +256,7 @@ export default function AddressForm({
         return next
       })
     },
-    [t]
+    [t, todayISO]
   )
 
   const filledStopCount = stopAddresses.filter((a) => a.trim()).length

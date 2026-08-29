@@ -1,7 +1,7 @@
 import { AddressInput, ScheduleConstraints, MeasurementSchedule, DailyPlan, DailyStop, RouteResponse } from './types'
 import { daysUntilDate, isOverdue, getPriority, formatDateToISO } from './utils'
 
-const DEFAULT_CONSTRAINTS: ScheduleConstraints = {
+export const DEFAULT_CONSTRAINTS: ScheduleConstraints = {
   maxStopsPerDay: 6,
   workingDays: [1, 2, 3, 4, 5], // Mon-Fri
   prioritizeDeadlines: true,
@@ -9,14 +9,22 @@ const DEFAULT_CONSTRAINTS: ScheduleConstraints = {
   allowOverdueAddresses: true,
 }
 
-// Main: Generate optimized schedule
+// The schedule only needs the start address's coordinates, so accept anything
+// that carries them (the API hands us the raw request start point).
+export interface ScheduleStartPoint {
+  geocodedCoords?: { lat: number; lon: number; displayName: string }
+}
+
+// Main: Generate optimized schedule. `today` is the client's calendar day —
+// the server clock may be in a different timezone than the user.
 export async function generateMeasurementSchedule(
   addresses: AddressInput[],
   constraints: ScheduleConstraints = DEFAULT_CONSTRAINTS,
   osrmOptimizer: (
     waypoints: Array<{ id: string; lat: number; lon: number; displayName: string }>
   ) => Promise<RouteResponse>,
-  startPoint?: AddressInput
+  startPoint?: ScheduleStartPoint,
+  today?: Date
 ): Promise<MeasurementSchedule> {
   // Validate addresses have dates
   const validAddresses = addresses.filter((a) => a.measurementDate && a.deadlineDate && a.geocodedCoords)
@@ -24,13 +32,13 @@ export async function generateMeasurementSchedule(
     throw new Error('No addresses with valid dates and coordinates')
   }
 
-  // Sort by deadline urgency
-  const sorted = validAddresses.sort(
+  // Sort by deadline urgency (copy: don't reorder the caller's array)
+  const sorted = [...validAddresses].sort(
     (a, b) => a.deadlineDate!.getTime() - b.deadlineDate!.getTime()
   )
 
   // Group addresses into days (intelligent deadline-aware grouping)
-  const dailyGroups = groupAddressesByDay(sorted, constraints)
+  const dailyGroups = groupAddressesByDay(sorted, constraints, today)
 
   // Optimize routes for each day via OSRM
   const dailyPlans: DailyPlan[] = []
@@ -64,7 +72,7 @@ export async function generateMeasurementSchedule(
     } catch (err) {
       console.error(`Failed to optimize route for ${dayDate}:`, err)
       // Create plan without optimization
-      const plan = createDailyPlanWithoutOptimization(dayDate, addrsForDay, constraints)
+      const plan = createDailyPlanWithoutOptimization(dayDate, addrsForDay, constraints, startPoint)
       dailyPlans.push(plan)
     }
   }
@@ -104,10 +112,11 @@ export async function generateMeasurementSchedule(
 // Intelligent grouping: deadline-first + prefer measurement date
 function groupAddressesByDay(
   addresses: AddressInput[],
-  constraints: ScheduleConstraints
+  constraints: ScheduleConstraints,
+  clientToday?: Date
 ): Map<string, AddressInput[]> {
   const groups = new Map<string, AddressInput[]>()
-  const today = new Date()
+  const today = clientToday ? new Date(clientToday) : new Date()
   today.setHours(0, 0, 0, 0)
 
   for (const addr of addresses) {
@@ -186,13 +195,9 @@ function createDailyPlan(
   )
 
   const stops: DailyStop[] = stopsWaypoints.map((wp, idx) => {
-    // Find matching address by coordinates
-    const wpLat = typeof wp.lat === 'string' ? parseFloat(wp.lat) : wp.lat
-    const wpLon = typeof wp.lon === 'string' ? parseFloat(wp.lon) : wp.lon
-    const originalAddr = addresses.find(
-      (a) => Math.abs(a.geocodedCoords!.lat - wpLat) < 0.0001 &&
-             Math.abs(a.geocodedCoords!.lon - wpLon) < 0.0001
-    ) || addresses[0]
+    // calculateRoute echoes each input waypoint's id as originalAddressId, and
+    // we set those ids to the address ids — an exact join, no coordinate fuzz.
+    const originalAddr = addresses.find((a) => a.id === wp.originalAddressId) || addresses[0]
     const daysLeft = daysUntilDate(originalAddr.deadlineDate!, date)
 
     return {
@@ -214,7 +219,7 @@ function createDailyPlan(
         isOverdue: isOverdue(originalAddr.deadlineDate!, date),
         daysUntilDeadline: daysLeft,
       },
-      priority: getPriority(originalAddr.deadlineDate!),
+      priority: getPriority(originalAddr.deadlineDate!, date),
       // With a start point, leg idx arrives at stop idx (leg 0 = start → first
       // stop, so the first stop's distance from home is real data, not blank).
       distanceFromPrevious: hasStart
@@ -252,14 +257,19 @@ function createDailyPlan(
   }
 }
 
-// Create DailyPlan without route optimization (fallback)
+// Create DailyPlan without route optimization (fallback). Builds a straight-line
+// round-trip route (no road geometry) so the schedule map can still render the
+// day the same way it renders an optimized one.
 function createDailyPlanWithoutOptimization(
   dayDate: string,
   addresses: AddressInput[],
-  constraints: ScheduleConstraints
+  constraints: ScheduleConstraints,
+  startPoint?: ScheduleStartPoint
 ): DailyPlan {
   const date = new Date(dayDate + 'T00:00:00')
   const dayOfWeek = date.toLocaleDateString('en-US', { weekday: 'long' })
+  const hasStart = !!startPoint?.geocodedCoords
+  const routeId = `fallback-${date.getTime()}`
 
   const stops: DailyStop[] = addresses.map((addr, idx) => {
     const daysLeft = daysUntilDate(addr.deadlineDate!, date)
@@ -267,7 +277,8 @@ function createDailyPlanWithoutOptimization(
       id: `stop-${date.getTime()}-${idx}`,
       dailyPlanId: 'temp',
       addressId: addr.id,
-      sequenceNumber: idx + 1,
+      // Keep numbering consistent with the map markers (start is 1)
+      sequenceNumber: hasStart ? idx + 2 : idx + 1,
       address: {
         text: addr.text,
         lat: addr.geocodedCoords!.lat,
@@ -280,9 +291,67 @@ function createDailyPlanWithoutOptimization(
         isOverdue: isOverdue(addr.deadlineDate!, date),
         daysUntilDeadline: daysLeft,
       },
-      priority: getPriority(addr.deadlineDate!),
+      priority: getPriority(addr.deadlineDate!, date),
     }
   })
+
+  // Straight-line round-trip: [start?, ...stops, synthetic return-to-start],
+  // mirroring the shape calculateRoute produces (segments without geometry
+  // render as straight lines on the map).
+  const loopWaypoints = [
+    ...(hasStart
+      ? [
+          {
+            id: 'start',
+            routeId,
+            originalAddressId: 'start',
+            sequence: 1,
+            lat: startPoint!.geocodedCoords!.lat,
+            lon: startPoint!.geocodedCoords!.lon,
+            displayName: startPoint!.geocodedCoords!.displayName,
+            isStartPoint: true,
+            isEndPoint: false,
+          },
+        ]
+      : []),
+    ...stops.map((stop) => ({
+      id: stop.id,
+      routeId,
+      originalAddressId: stop.addressId,
+      sequence: stop.sequenceNumber,
+      lat: stop.address.lat,
+      lon: stop.address.lon,
+      displayName: stop.address.displayName,
+      isStartPoint: !hasStart && stop.sequenceNumber === 1,
+      isEndPoint: false,
+    })),
+  ]
+
+  const route = {
+    id: routeId,
+    waypoints: [
+      ...loopWaypoints,
+      {
+        ...loopWaypoints[0],
+        sequence: loopWaypoints.length + 1,
+        isStartPoint: false,
+        isEndPoint: true,
+      },
+    ],
+    segments: loopWaypoints.map((wp, i) => ({
+      id: `seg-${i}`,
+      routeId,
+      fromWaypoint: wp.id,
+      toWaypoint: loopWaypoints[(i + 1) % loopWaypoints.length].id,
+      sequence: i + 1,
+      distance: 0,
+      duration: 0,
+    })),
+    totalDistance: 0,
+    totalDuration: 0,
+    optimizationGain: 0,
+    status: 'success' as const,
+  }
 
   return {
     id: `plan-${date.getTime()}`,
@@ -290,6 +359,7 @@ function createDailyPlanWithoutOptimization(
     date,
     dayOfWeek,
     stops,
+    route,
     metrics: {
       totalDistance: 0,
       totalDuration: 0,

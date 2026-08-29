@@ -94,16 +94,13 @@ export function findDistanceOutliers<T extends { lat: number; lon: number }>(
 
 // Date formatting utilities (US1 & US2)
 
+// Formats the LOCAL calendar day (not UTC): with toISOString() a user in a
+// UTC-negative timezone (e.g. Québec) gets tomorrow's date every evening.
 export function formatDateToISO(date: Date): string {
-  return date.toISOString().split('T')[0]
-}
-
-export function parseISODateString(dateStr: string): Date {
-  return new Date(dateStr + 'T00:00:00')
-}
-
-export function isValidDate(date: Date): boolean {
-  return date instanceof Date && !isNaN(date.getTime())
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
 }
 
 export function daysUntilDate(targetDate: Date, fromDate: Date = new Date()): number {
@@ -119,19 +116,11 @@ export function isOverdue(deadlineDate: Date, asOfDate: Date = new Date()): bool
   return daysUntilDate(deadlineDate, asOfDate) < 0
 }
 
-export function getPriority(deadlineDate: Date): 'urgent' | 'normal' | 'flexible' {
-  const daysUntilDeadline = daysUntilDate(deadlineDate)
-  if (isOverdue(deadlineDate)) return 'urgent'
+// asOf lets callers classify urgency relative to the day the stop is actually
+// scheduled for, not just "now".
+export function getPriority(deadlineDate: Date, asOf: Date = new Date()): 'urgent' | 'normal' | 'flexible' {
+  const daysUntilDeadline = daysUntilDate(deadlineDate, asOf)
   if (daysUntilDeadline <= 1) return 'urgent'
   if (daysUntilDeadline <= 7) return 'normal'
   return 'flexible'
-}
-
-export function validateDateRange(fromDate: Date, toDate: Date, maxDaysInPast: number = 30): boolean {
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-  const minDate = new Date(today)
-  minDate.setDate(minDate.getDate() - maxDaysInPast)
-
-  return fromDate >= minDate && toDate >= minDate
 }
