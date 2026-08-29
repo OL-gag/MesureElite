@@ -1,0 +1,223 @@
+'use client'
+
+import { useEffect, useState } from 'react'
+import dynamic from 'next/dynamic'
+import { useRouter } from 'next/navigation'
+import ErrorBoundary from '@/app/components/ErrorBoundary'
+import DailyPlanCard from '@/app/components/DailyPlanCard'
+import { MeasurementSchedule } from '@/app/lib/types'
+import { useLanguage } from '@/app/lib/i18n/LanguageContext'
+import { formatDateToISO } from '@/app/lib/utils'
+
+const RouteMap = dynamic(() => import('@/app/components/RouteMap'), { ssr: false })
+
+export default function Schedule() {
+  const router = useRouter()
+  const { t, locale } = useLanguage()
+  const [schedule, setSchedule] = useState<MeasurementSchedule | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string>('')
+  const [selectedDateIndex, setSelectedDateIndex] = useState(0)
+
+  useEffect(() => {
+    const loadSchedule = async () => {
+      try {
+        // Load schedule from sessionStorage
+        const storedSchedule = sessionStorage.getItem('schedule')
+        if (storedSchedule) {
+          const parsed = JSON.parse(storedSchedule)
+          // Parse dates back to Date objects. Plan dates were anchored at the
+          // server's midnight (UTC on Vercel): re-anchor the calendar day at
+          // LOCAL midnight so evening-vs-UTC offsets can't shift the day shown.
+          const withDates = {
+            ...parsed,
+            dailyPlans: parsed.dailyPlans.map((plan: any) => ({
+              ...plan,
+              date: new Date(String(plan.date).slice(0, 10) + 'T00:00:00'),
+              stops: plan.stops.map((stop: any) => ({
+                ...stop,
+                measurements: {
+                  ...stop.measurements,
+                  measurementDate: new Date(stop.measurements.measurementDate),
+                  deadlineDate: new Date(stop.measurements.deadlineDate),
+                },
+              })),
+            })),
+            generatedAt: new Date(parsed.generatedAt),
+          }
+          setSchedule(withDates)
+          setLoading(false)
+          return
+        }
+
+        // No schedule in sessionStorage - redirect to home
+        router.push('/')
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to load schedule')
+        setLoading(false)
+      }
+    }
+
+    loadSchedule()
+  }, [router])
+
+  if (loading) {
+    return <div className="text-center py-12">{t('results.loading')}</div>
+  }
+
+  if (error) {
+    return (
+      <div className="text-center py-12">
+        <p className="text-red-600 dark:text-red-400">{error}</p>
+        <button onClick={() => router.push('/')} className="button-secondary mt-4">
+          {t('results.editAddressesButton')}
+        </button>
+      </div>
+    )
+  }
+
+  if (!schedule) {
+    return <div className="text-center py-12">{t('results.loading')}</div>
+  }
+
+  return (
+    <ErrorBoundary>
+      <div className="space-y-8">
+        {/* Header */}
+        <section className="flex justify-between items-center">
+          <div>
+            <h1 className="text-3xl font-bold text-slate-900 dark:text-white">
+              {t('schedule.title')}
+            </h1>
+            <p className="text-slate-600 dark:text-slate-400 mt-2">
+              {t('schedule.generatedAt')} {new Date(schedule.generatedAt).toLocaleString()}
+            </p>
+          </div>
+          <button onClick={() => router.push('/')} className="button-secondary">
+            {t('results.editAddressesButton')}
+          </button>
+        </section>
+
+        {/* Summary Metrics */}
+        <section className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="card">
+            <p className="text-sm text-slate-600 dark:text-slate-400 mb-1">{t('schedule.totalAddresses')}</p>
+            <p className="text-3xl font-bold text-blue-600 dark:text-blue-400">
+              {schedule.metadata.totalAddresses}
+            </p>
+          </div>
+          <div className="card">
+            <p className="text-sm text-slate-600 dark:text-slate-400 mb-1">{t('schedule.totalDistance')}</p>
+            <p className="text-3xl font-bold text-green-600 dark:text-green-400">
+              {(schedule.metadata.totalDistance / 1000).toFixed(1)} km
+            </p>
+          </div>
+          <div className="card">
+            <p className="text-sm text-slate-600 dark:text-slate-400 mb-1">{t('schedule.totalDuration')}</p>
+            <p className="text-3xl font-bold text-amber-600 dark:text-amber-400">
+              {Math.round(schedule.metadata.totalDuration / 3600)}h {Math.round((schedule.metadata.totalDuration % 3600) / 60)}m
+            </p>
+          </div>
+          <div className="card">
+            <p className="text-sm text-slate-600 dark:text-slate-400 mb-1">{t('schedule.daysScheduled')}</p>
+            <p className="text-3xl font-bold text-purple-600 dark:text-purple-400">
+              {schedule.dailyPlans.length}
+            </p>
+          </div>
+        </section>
+
+        {/* Daily Plans with Map */}
+        <section className="space-y-4">
+          {/* Date Tabs */}
+          <div className="flex flex-wrap gap-2 border-b border-slate-200 dark:border-slate-700">
+            {schedule.dailyPlans.map((plan, idx) => (
+              <button
+                key={plan.id}
+                onClick={() => setSelectedDateIndex(idx)}
+                className={`px-4 py-2 font-medium border-b-2 transition-colors ${
+                  selectedDateIndex === idx
+                    ? 'border-blue-600 text-blue-600 dark:text-blue-400'
+                    : 'border-transparent text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                }`}
+              >
+                📅 {formatDateToISO(plan.date)}
+              </button>
+            ))}
+          </div>
+
+          {/* Map and Plan */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            {/* Map */}
+            <div className="lg:col-span-2 card bg-slate-100 dark:bg-slate-800 flex items-center justify-center min-h-[400px] relative">
+              {(() => {
+                const plan = schedule.dailyPlans[selectedDateIndex]
+                // Every plan (optimized or fallback) carries its round-trip
+                // route — render it exactly like the results page does.
+                if (!plan?.route || plan.route.waypoints.length === 0) {
+                  return (
+                    <div className="text-center text-slate-500 dark:text-slate-400">
+                      ⚠️ {t('schedule.noStops')}
+                    </div>
+                  )
+                }
+                return (
+                  <RouteMap
+                    route={{
+                      ...plan.route,
+                      addressListId: 'schedule',
+                      calculatedAt: new Date(),
+                    }}
+                  />
+                )
+              })()}
+            </div>
+
+            {/* Daily Plan Card */}
+            <div className="lg:col-span-1">
+              <DailyPlanCard plan={schedule.dailyPlans[selectedDateIndex]} />
+            </div>
+          </div>
+        </section>
+
+        {/* Constraints Info */}
+        <section className="p-4 bg-slate-50 dark:bg-slate-700/50 rounded-lg border border-slate-200 dark:border-slate-600">
+          <h3 className="font-semibold text-slate-900 dark:text-white mb-2">
+            {t('schedule.constraints')}
+          </h3>
+          <ul className="text-sm text-slate-600 dark:text-slate-400 space-y-1">
+            <li>• {t('schedule.maxStopsPerDay')}: {schedule.constraints.maxStopsPerDay}</li>
+            <li>
+              • {t('schedule.workingDays')}:{' '}
+              {schedule.constraints.workingDays
+                // 2024-01-01 is a Monday, so UTC day d of Jan 2024 = ISO weekday d
+                .map((d) =>
+                  new Date(Date.UTC(2024, 0, d)).toLocaleDateString(locale, {
+                    weekday: 'long',
+                    timeZone: 'UTC',
+                  })
+                )
+                .join(', ')}
+            </li>
+            <li>• {t('schedule.priority')}: {t('schedule.deadlineFirstGrouping')}</li>
+            <li>• {t('schedule.routeOptimization')}: {t('schedule.viaOSRM')}</li>
+          </ul>
+        </section>
+
+        {/* Action Buttons */}
+        <section className="flex gap-3 justify-center">
+          <button
+            // Keep 'addresses'/'addressTexts' in sessionStorage: the form uses
+            // them to restore the entered addresses AND their dates (FR-006).
+            onClick={() => router.push('/')}
+            className="button-secondary"
+          >
+            {t('results.editAddressesButton')}
+          </button>
+          <button onClick={() => window.print()} className="button-secondary">
+            {t('results.printButton')}
+          </button>
+        </section>
+      </div>
+    </ErrorBoundary>
+  )
+}

@@ -75,6 +75,10 @@ export const translations: Record<Locale, Record<string, string>> = {
     'addressForm.errorValidationFailed': 'Échec de la validation',
     'addressForm.errorSubmitFailed': "Échec du géocodage des adresses",
 
+    // measurement dates (US1 & US2)
+    'addressForm.measurementDateLabel': 'Date de mesure',
+    'addressForm.deadlineDateLabel': 'Date limite',
+
     // results (app/results/page.tsx)
     'results.loading': 'Chargement...',
     'results.heading': '✅ Itinéraire optimisé',
@@ -93,6 +97,26 @@ export const translations: Record<Locale, Record<string, string>> = {
     'results.printButton': '🖨️ Imprimer les résultats',
     'results.footerInfo':
       "Itinéraire optimisé avec OSRM (Open Source Routing Machine) • Distances calculées par trajet routier",
+
+    // schedule (app/schedule/page.tsx)
+    'schedule.title': '📅 Plan de mesure optimisé',
+    'schedule.generatedAt': 'Généré à',
+    'schedule.totalAddresses': 'Total adresses',
+    'schedule.totalDistance': 'Distance totale',
+    'schedule.totalDuration': 'Durée totale',
+    'schedule.daysScheduled': 'Jours planifiés',
+    'schedule.constraints': '📋 Contraintes du plan',
+    'schedule.maxStopsPerDay': 'Arrêts max par jour',
+    'schedule.workingDays': 'Jours de travail',
+    'schedule.priority': 'Priorité',
+    'schedule.routeOptimization': 'Optimisation d\'itinéraire',
+    'schedule.deadlineFirstGrouping': 'Groupage par date limite',
+    'schedule.viaOSRM': 'Via OSRM',
+    'schedule.startLabel': 'Départ',
+    'schedule.returnLabel': 'Retour au point de départ',
+    'schedule.stopsCount': '{count} arrêt(s)',
+    'schedule.noStops': 'Aucun arrêt pour cette journée',
+    'schedule.exceedsMaxStops': 'Cette journée dépasse le maximum de {max} arrêts',
 
     // map (app/components/RouteMap.tsx)
     'map.startPopupPrefix': '🏁 Départ : ',
@@ -170,6 +194,10 @@ export const translations: Record<Locale, Record<string, string>> = {
     'addressForm.errorValidationFailed': 'Validation failed',
     'addressForm.errorSubmitFailed': 'Failed to geocode addresses',
 
+    // measurement dates (US1 & US2)
+    'addressForm.measurementDateLabel': 'Measurement Date',
+    'addressForm.deadlineDateLabel': 'Deadline Date',
+
     // results (app/results/page.tsx)
     'results.loading': 'Loading...',
     'results.heading': '✅ Route Optimized',
@@ -188,6 +216,26 @@ export const translations: Record<Locale, Record<string, string>> = {
     'results.printButton': '🖨️ Print Results',
     'results.footerInfo':
       'Route optimized using OSRM (Open Source Routing Machine) • Distances calculated via car routes',
+
+    // schedule (app/schedule/page.tsx)
+    'schedule.title': '📅 Optimized Measurement Schedule',
+    'schedule.generatedAt': 'Generated at',
+    'schedule.totalAddresses': 'Total Addresses',
+    'schedule.totalDistance': 'Total Distance',
+    'schedule.totalDuration': 'Total Time',
+    'schedule.daysScheduled': 'Days Scheduled',
+    'schedule.constraints': '📋 Schedule Constraints',
+    'schedule.maxStopsPerDay': 'Max stops per day',
+    'schedule.workingDays': 'Working days',
+    'schedule.priority': 'Priority',
+    'schedule.routeOptimization': 'Route optimization',
+    'schedule.deadlineFirstGrouping': 'Deadline-first grouping',
+    'schedule.viaOSRM': 'Via OSRM',
+    'schedule.startLabel': 'Start',
+    'schedule.returnLabel': 'Return to start',
+    'schedule.stopsCount': '{count} stop(s)',
+    'schedule.noStops': 'No stops for this day',
+    'schedule.exceedsMaxStops': 'This day exceeds the maximum of {max} stops',
 
     // map (app/components/RouteMap.tsx)
     'map.startPopupPrefix': '🏁 Start: ',

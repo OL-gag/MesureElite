@@ -20,6 +20,9 @@ export interface AddressInput {
   }[]
   createdAt: Date
   updatedAt: Date
+  // Measurement scheduling fields (US1 & US2)
+  measurementDate?: Date
+  deadlineDate?: Date
 }
 
 export interface AddressList {
@@ -132,5 +135,75 @@ export interface RouteResponse {
     status: 'success' | 'failed'
     error?: string
     errorCode?: string
+  }
+}
+
+// Measurement Schedule Types (US3)
+
+export interface ScheduleConstraints {
+  maxStopsPerDay: number
+  workingDays: number[]
+  prioritizeDeadlines: boolean
+  balanceLoadAndDistance: boolean
+  allowOverdueAddresses: boolean
+}
+
+export interface DailyStop {
+  id: string
+  dailyPlanId: string
+  addressId: string
+  sequenceNumber: number
+  address: {
+    text: string
+    lat: number
+    lon: number
+    displayName: string
+  }
+  measurements: {
+    measurementDate: Date
+    deadlineDate: Date
+    isOverdue: boolean
+    daysUntilDeadline: number
+  }
+  priority: 'urgent' | 'normal' | 'flexible'
+  distanceFromPrevious?: number
+  durationFromPrevious?: number
+}
+
+export interface DailyPlan {
+  id: string
+  scheduleId: string
+  date: Date
+  dayOfWeek: string
+  stops: DailyStop[]
+  routeGeometry?: [number, number][]
+  // Full OSRM round-trip route for this day (start → stops → back to start),
+  // in the same shape the results page feeds to RouteMap. Absent when route
+  // optimization failed and the plan was built without OSRM.
+  route?: RouteResponse['route']
+  metrics: {
+    totalDistance: number
+    totalDuration: number
+    stopCount: number
+    feasible: boolean
+  }
+  constraints: {
+    maxStops: number
+    maxDuration?: number
+    maxDistance?: number
+  }
+}
+
+export interface MeasurementSchedule {
+  id: string
+  addressListId: string
+  dailyPlans: DailyPlan[]
+  generatedAt: Date
+  constraints: ScheduleConstraints
+  metadata: {
+    totalDistance: number
+    totalDuration: number
+    totalAddresses: number
+    addressesOnDeadline: number
   }
 }
