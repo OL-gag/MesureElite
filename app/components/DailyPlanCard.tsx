@@ -2,13 +2,20 @@
 
 import { DailyPlan } from '@/app/lib/types'
 import { formatDistance, formatDuration, formatDateToISO } from '@/app/lib/utils'
+import { useLanguage } from '@/app/lib/i18n/LanguageContext'
 
 interface DailyPlanCardProps {
   plan: DailyPlan
 }
 
 export default function DailyPlanCard({ plan }: DailyPlanCardProps) {
+  const { t } = useLanguage()
   const dateStr = formatDateToISO(plan.date)
+
+  // The day's route is a round trip: surface the start address at the top and
+  // the return leg at the bottom of the itinerary.
+  const startWaypoint = plan.route?.waypoints.find((wp) => wp.isStartPoint)
+  const returnSegment = plan.route?.segments[plan.route.segments.length - 1]
 
   return (
     <div className="card space-y-4">
@@ -23,7 +30,21 @@ export default function DailyPlanCard({ plan }: DailyPlanCardProps) {
       </div>
 
       <div className="space-y-2">
-        {plan.stops.map((stop, idx) => (
+        {startWaypoint && (
+          <div className="p-3 bg-green-50 dark:bg-green-900/20 rounded border border-green-200 dark:border-green-700">
+            <div className="flex items-start gap-3">
+              <div className="flex-shrink-0 w-8 h-8 rounded-full bg-green-100 dark:bg-green-900 flex items-center justify-center text-sm">
+                ⭐
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="font-semibold text-slate-900 dark:text-white">{t('schedule.startLabel')}</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">{startWaypoint.displayName}</p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {plan.stops.map((stop) => (
           <div key={stop.id} className="p-3 bg-slate-50 dark:bg-slate-700/30 rounded border border-slate-200 dark:border-slate-600">
             <div className="flex items-start gap-3">
               <div className="flex-shrink-0 w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center text-sm font-bold text-blue-600 dark:text-blue-200">
@@ -36,7 +57,7 @@ export default function DailyPlanCard({ plan }: DailyPlanCardProps) {
 
                 <div className="flex items-center gap-4 mt-2 text-sm text-slate-600 dark:text-slate-400">
                   <span>📍 ({stop.address.lat.toFixed(4)}, {stop.address.lon.toFixed(4)})</span>
-                  {idx < plan.stops.length - 1 && stop.distanceFromPrevious !== undefined && (
+                  {stop.distanceFromPrevious !== undefined && (
                     <>
                       <span>→ {formatDistance(stop.distanceFromPrevious)}</span>
                       <span>{formatDuration(stop.durationFromPrevious || 0)}</span>
@@ -47,6 +68,26 @@ export default function DailyPlanCard({ plan }: DailyPlanCardProps) {
             </div>
           </div>
         ))}
+
+        {startWaypoint && (
+          <div className="p-3 bg-green-50 dark:bg-green-900/20 rounded border border-green-200 dark:border-green-700">
+            <div className="flex items-start gap-3">
+              <div className="flex-shrink-0 w-8 h-8 rounded-full bg-green-100 dark:bg-green-900 flex items-center justify-center text-sm">
+                🏠
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="font-semibold text-slate-900 dark:text-white">{t('schedule.returnLabel')}</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">{startWaypoint.displayName}</p>
+                {returnSegment && (
+                  <div className="flex items-center gap-4 mt-2 text-sm text-slate-600 dark:text-slate-400">
+                    <span>→ {formatDistance(returnSegment.distance)}</span>
+                    <span>{formatDuration(returnSegment.duration)}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {!plan.metrics.feasible && (

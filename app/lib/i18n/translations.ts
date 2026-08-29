@@ -116,6 +116,8 @@ export const translations: Record<Locale, Record<string, string>> = {
     'schedule.routeOptimization': 'Optimisation d\'itinéraire',
     'schedule.deadlineFirstGrouping': 'Groupage par date limite',
     'schedule.viaOSRM': 'Via OSRM',
+    'schedule.startLabel': 'Départ',
+    'schedule.returnLabel': 'Retour au point de départ',
 
     // map (app/components/RouteMap.tsx)
     'map.startPopupPrefix': '🏁 Départ : ',
@@ -234,6 +236,8 @@ export const translations: Record<Locale, Record<string, string>> = {
     'schedule.routeOptimization': 'Route optimization',
     'schedule.deadlineFirstGrouping': 'Deadline-first grouping',
     'schedule.viaOSRM': 'Via OSRM',
+    'schedule.startLabel': 'Start',
+    'schedule.returnLabel': 'Return to start',
 
     // map (app/components/RouteMap.tsx)
     'map.startPopupPrefix': '🏁 Start: ',

@@ -53,84 +53,18 @@ export async function POST(request: NextRequest) {
       allowOverdueAddresses: true,
     }
 
-    // Call OSRM for route optimization directly
-    const osrmOptimizer = async (waypoints: Array<{ lat: number; lon: number }>) => {
-      if (waypoints.length < 2) {
-        return {
-          route: {
-            id: 'mock-route',
-            waypoints: waypoints.map((wp, idx) => ({
-              id: `wp-${idx}`,
-              routeId: 'mock-route',
-              originalAddressId: 'mock',
-              sequence: idx + 1,
-              lat: wp.lat,
-              lon: wp.lon,
-              displayName: `Waypoint ${idx + 1}`,
-              isStartPoint: idx === 0,
-              isEndPoint: idx === waypoints.length - 1,
-            })),
-            segments: waypoints.slice(0, -1).map((_, idx) => ({
-              id: `seg-${idx}`,
-              routeId: 'mock-route',
-              fromWaypoint: `wp-${idx}`,
-              toWaypoint: `wp-${idx + 1}`,
-              sequence: idx + 1,
-              distance: 5000,
-              duration: 600,
-            })),
-            totalDistance: (waypoints.length - 1) * 5000,
-            totalDuration: (waypoints.length - 1) * 600,
-            optimizationGain: 0,
-            status: 'success' as const,
-          },
-        }
+    // Route each day via OSRM directly (calling our own /api/route over HTTP
+    // fails behind Vercel preview protection). calculateRoute closes the loop
+    // back to the first waypoint (the start address) by itself. On failure we
+    // throw so the schedule optimizer falls back to an unoptimized plan.
+    const osrmOptimizer = async (
+      waypoints: Array<{ id: string; lat: number; lon: number; displayName: string }>
+    ) => {
+      const route = await calculateRoute(waypoints)
+      if (route.status === 'failed') {
+        throw new Error(route.error || 'Routing calculation failed')
       }
-
-      try {
-        // Call OSRM directly instead of via /api/route
-        const validatedWaypoints = waypoints.map((wp, i) => ({
-          id: `wp-${i}`,
-          lat: wp.lat,
-          lon: wp.lon,
-          displayName: `Stop ${i + 1}`,
-        }))
-
-        const route = await calculateRoute(validatedWaypoints)
-        return { route }
-      } catch (err) {
-        console.error('OSRM optimization failed, using mock data:', err instanceof Error ? err.message : String(err))
-        // Fallback: return mock route
-        return {
-          route: {
-            id: 'fallback-route',
-            waypoints: waypoints.map((wp, idx) => ({
-              id: `wp-${idx}`,
-              routeId: 'fallback-route',
-              originalAddressId: 'mock',
-              sequence: idx + 1,
-              lat: wp.lat,
-              lon: wp.lon,
-              displayName: `Stop ${idx + 1}`,
-              isStartPoint: idx === 0,
-              isEndPoint: idx === waypoints.length - 1,
-            })),
-            segments: waypoints.slice(0, -1).map((_, idx) => ({
-              id: `seg-${idx}`,
-              routeId: 'fallback-route',
-              fromWaypoint: `wp-${idx}`,
-              toWaypoint: `wp-${idx + 1}`,
-              sequence: idx + 1,
-              distance: 5000,
-              duration: 600,
-            })),
-            totalDistance: (waypoints.length - 1) * 5000,
-            totalDuration: (waypoints.length - 1) * 600,
-            optimizationGain: 0,
-            status: 'success' as const,
-          },
-        }
-      }
+      return { route }
     }
 
     // Generate schedule with start point for round-trip routes

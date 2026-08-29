@@ -177,6 +177,10 @@ export interface DailyPlan {
   dayOfWeek: string
   stops: DailyStop[]
   routeGeometry?: [number, number][]
+  // Full OSRM round-trip route for this day (start → stops → back to start),
+  // in the same shape the results page feeds to RouteMap. Absent when route
+  // optimization failed and the plan was built without OSRM.
+  route?: RouteResponse['route']
   metrics: {
     totalDistance: number
     totalDuration: number

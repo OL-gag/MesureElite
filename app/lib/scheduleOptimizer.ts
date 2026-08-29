@@ -13,7 +13,9 @@ const DEFAULT_CONSTRAINTS: ScheduleConstraints = {
 export async function generateMeasurementSchedule(
   addresses: AddressInput[],
   constraints: ScheduleConstraints = DEFAULT_CONSTRAINTS,
-  osrmOptimizer: (waypoints: Array<{ lat: number; lon: number }>) => Promise<RouteResponse>,
+  osrmOptimizer: (
+    waypoints: Array<{ id: string; lat: number; lon: number; displayName: string }>
+  ) => Promise<RouteResponse>,
   startPoint?: AddressInput
 ): Promise<MeasurementSchedule> {
   // Validate addresses have dates
@@ -33,30 +35,31 @@ export async function generateMeasurementSchedule(
   // Optimize routes for each day via OSRM
   const dailyPlans: DailyPlan[] = []
   for (const [dayDate, addrsForDay] of dailyGroups) {
-    // Create round-trip route: start → stops → start
-    const waypoints = []
+    // Send start + stops only: calculateRoute closes the loop back to the
+    // first waypoint itself (and appends a synthetic isEndPoint waypoint),
+    // so adding the start again here would double the return leg.
+    const hasStart = !!startPoint?.geocodedCoords
+    const waypoints: Array<{ id: string; lat: number; lon: number; displayName: string }> = []
     if (startPoint?.geocodedCoords) {
       waypoints.push({
+        id: 'start',
         lat: startPoint.geocodedCoords.lat,
         lon: startPoint.geocodedCoords.lon,
+        displayName: startPoint.geocodedCoords.displayName,
       })
     }
     waypoints.push(
       ...addrsForDay.map((a) => ({
+        id: a.id,
         lat: a.geocodedCoords!.lat,
         lon: a.geocodedCoords!.lon,
+        displayName: a.geocodedCoords!.displayName,
       }))
     )
-    if (startPoint?.geocodedCoords) {
-      waypoints.push({
-        lat: startPoint.geocodedCoords.lat,
-        lon: startPoint.geocodedCoords.lon,
-      })
-    }
 
     try {
       const route = await osrmOptimizer(waypoints)
-      const plan = createDailyPlan(dayDate, addrsForDay, route, constraints)
+      const plan = createDailyPlan(dayDate, addrsForDay, route, constraints, hasStart)
       dailyPlans.push(plan)
     } catch (err) {
       console.error(`Failed to optimize route for ${dayDate}:`, err)
@@ -170,14 +173,17 @@ function createDailyPlan(
   dayDate: string,
   addresses: AddressInput[],
   route: RouteResponse,
-  constraints: ScheduleConstraints
+  constraints: ScheduleConstraints,
+  hasStart: boolean
 ): DailyPlan {
   const date = new Date(dayDate + 'T00:00:00')
   const dayOfWeek = date.toLocaleDateString('en-US', { weekday: 'long' })
 
-  // Filter waypoints: skip the synthetic start/end points added for round-trip
-  // Keep only the actual address stops (middle waypoints)
-  const stopsWaypoints = route.route.waypoints.slice(1, -1)
+  // calculateRoute returns [start?, ...stops, synthetic return-to-start]:
+  // keep only the actual address stops for the itinerary list.
+  const stopsWaypoints = route.route.waypoints.filter(
+    (wp) => !wp.isEndPoint && !(hasStart && wp.isStartPoint)
+  )
 
   const stops: DailyStop[] = stopsWaypoints.map((wp, idx) => {
     // Find matching address by coordinates
@@ -193,7 +199,9 @@ function createDailyPlan(
       id: `stop-${date.getTime()}-${idx}`,
       dailyPlanId: 'temp',
       addressId: originalAddr.id,
-      sequenceNumber: idx + 1,
+      // Use the route waypoint's sequence so list numbering matches the
+      // numbered markers on the map (start is 1, first stop is 2, ...).
+      sequenceNumber: wp.sequence,
       address: {
         text: originalAddr.text,
         lat: originalAddr.geocodedCoords!.lat,
@@ -207,8 +215,18 @@ function createDailyPlan(
         daysUntilDeadline: daysLeft,
       },
       priority: getPriority(originalAddr.deadlineDate!),
-      distanceFromPrevious: idx === 0 ? undefined : route.route.segments[idx]?.distance,
-      durationFromPrevious: idx === 0 ? undefined : route.route.segments[idx]?.duration,
+      // With a start point, leg idx arrives at stop idx (leg 0 = start → first
+      // stop, so the first stop's distance from home is real data, not blank).
+      distanceFromPrevious: hasStart
+        ? route.route.segments[idx]?.distance
+        : idx === 0
+          ? undefined
+          : route.route.segments[idx - 1]?.distance,
+      durationFromPrevious: hasStart
+        ? route.route.segments[idx]?.duration
+        : idx === 0
+          ? undefined
+          : route.route.segments[idx - 1]?.duration,
     }
   })
 
@@ -219,6 +237,9 @@ function createDailyPlan(
     dayOfWeek,
     stops,
     routeGeometry: route.route.segments[0]?.geometry,
+    // Keep the full OSRM round-trip route so the schedule map renders the
+    // real road geometry with the start point, like the results page does.
+    route: route.route,
     metrics: {
       totalDistance: route.route.totalDistance,
       totalDuration: route.route.totalDuration,
