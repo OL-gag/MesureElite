@@ -115,6 +115,8 @@ export const translations: Record<Locale, Record<string, string>> = {
     'schedule.startLabel': 'Départ',
     'schedule.returnLabel': 'Retour au point de départ',
     'schedule.stopsCount': '{count} arrêt(s)',
+    'schedule.invalidAddressesWarning':
+      '{count} adresse(s) introuvable(s) — exclue(s) du plan de mesure. Corrigez-les via « Modifier les adresses » :',
     'schedule.noStops': 'Aucun arrêt pour cette journée',
     'schedule.exceedsMaxStops': 'Cette journée dépasse le maximum de {max} arrêts',
 
@@ -234,6 +236,8 @@ export const translations: Record<Locale, Record<string, string>> = {
     'schedule.startLabel': 'Start',
     'schedule.returnLabel': 'Return to start',
     'schedule.stopsCount': '{count} stop(s)',
+    'schedule.invalidAddressesWarning':
+      '{count} address(es) not found — excluded from the measurement plan. Fix them via "Edit Addresses":',
     'schedule.noStops': 'No stops for this day',
     'schedule.exceedsMaxStops': 'This day exceeds the maximum of {max} stops',
 
