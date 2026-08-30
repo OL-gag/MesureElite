@@ -5,8 +5,9 @@ import dynamic from 'next/dynamic'
 import { useRouter } from 'next/navigation'
 import ErrorBoundary from '@/app/components/ErrorBoundary'
 import DailyPlanCard from '@/app/components/DailyPlanCard'
-import { MeasurementSchedule } from '@/app/lib/types'
+import { MeasurementSchedule, GeocodeResponse } from '@/app/lib/types'
 import { useLanguage } from '@/app/lib/i18n/LanguageContext'
+import { translateError } from '@/app/lib/i18n/translations'
 import { formatDateToISO } from '@/app/lib/utils'
 
 const RouteMap = dynamic(() => import('@/app/components/RouteMap'), { ssr: false })
@@ -18,10 +19,21 @@ export default function Schedule() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string>('')
   const [selectedDateIndex, setSelectedDateIndex] = useState(0)
+  const [geocodeResults, setGeocodeResults] = useState<GeocodeResponse | null>(null)
 
   useEffect(() => {
     const loadSchedule = async () => {
       try {
+        // Load geocode results to warn about addresses excluded from the plan
+        const storedResults = sessionStorage.getItem('geocodeResults')
+        if (storedResults) {
+          try {
+            setGeocodeResults(JSON.parse(storedResults))
+          } catch {
+            // Ignore: the warning banner is best-effort
+          }
+        }
+
         // Load schedule from sessionStorage
         const storedSchedule = sessionStorage.getItem('schedule')
         if (storedSchedule) {
@@ -97,6 +109,24 @@ export default function Schedule() {
             {t('results.editAddressesButton')}
           </button>
         </section>
+
+        {/* Addresses excluded from the plan (failed geocoding) */}
+        {geocodeResults && geocodeResults.invalidCount > 0 && (
+          <section className="p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700 rounded-lg">
+            <p className="font-semibold text-yellow-800 dark:text-yellow-300">
+              ⚠️ {t('schedule.invalidAddressesWarning', { count: geocodeResults.invalidCount })}
+            </p>
+            <ul className="mt-2 space-y-1">
+              {geocodeResults.results
+                .filter((r) => r.status === 'invalid')
+                .map((r) => (
+                  <li key={r.id} className="text-sm text-yellow-700 dark:text-yellow-400">
+                    ✗ {translateError(t, r.errorCode, r.error)}
+                  </li>
+                ))}
+            </ul>
+          </section>
+        )}
 
         {/* Summary Metrics */}
         <section className="grid grid-cols-1 md:grid-cols-4 gap-4">
