@@ -8,7 +8,7 @@ import DailyPlanCard from '@/app/components/DailyPlanCard'
 import { MeasurementSchedule, GeocodeResponse } from '@/app/lib/types'
 import { useLanguage } from '@/app/lib/i18n/LanguageContext'
 import { translateError } from '@/app/lib/i18n/translations'
-import { formatDateToISO } from '@/app/lib/utils'
+import { formatDateToISO, formatDuration } from '@/app/lib/utils'
 
 const RouteMap = dynamic(() => import('@/app/components/RouteMap'), { ssr: false })
 
@@ -148,7 +148,7 @@ export default function Schedule() {
           <div className="card">
             <p className="text-sm text-slate-600 dark:text-slate-400 mb-1">{t('schedule.totalDuration')}</p>
             <p className="text-3xl font-bold text-amber-600 dark:text-amber-400">
-              {Math.round(schedule.metadata.totalDuration / 3600)}h {Math.round((schedule.metadata.totalDuration % 3600) / 60)}m
+              {formatDuration(schedule.metadata.totalDuration)}
             </p>
           </div>
           <div className="card">

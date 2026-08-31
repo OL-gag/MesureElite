@@ -94,26 +94,32 @@ export function findDistanceOutliers<T extends { lat: number; lon: number }>(
 
 // External navigation app deep links, built from a round-trip route: the
 // first point is the start address (used as both origin and final
-// destination), the rest are the day's stops in visiting order. Coordinates
-// only (no user text), so no percent-encoding is needed.
+// destination), the rest are the day's stops in visiting order.
+//
+// Uses the geocoded address TEXT rather than lat/lon: Nominatim (our
+// geocoder) is imprecise on some rural Québec addresses, and passing raw
+// coordinates makes Google/Apple reverse-geocode that (possibly off) point
+// to whatever address THEY have nearby — sometimes a different house number
+// or street entirely. Passing the address text lets each app geocode it
+// with its own (generally more complete) data, landing on the address the
+// user actually sees in the app instead of a coordinate-drift mismatch.
 export interface MapLinkPoint {
-  lat: number
-  lon: number
+  label: string
 }
 
 export function buildGoogleMapsUrl(orderedPoints: MapLinkPoint[]): string {
   const [start, ...stops] = orderedPoints
-  const coord = (p: MapLinkPoint) => `${p.lat},${p.lon}`
-  const params = [`api=1`, `origin=${coord(start)}`, `destination=${coord(start)}`, `travelmode=driving`]
-  if (stops.length > 0) params.push(`waypoints=${stops.map(coord).join('|')}`)
+  const place = (p: MapLinkPoint) => encodeURIComponent(p.label)
+  const params = [`api=1`, `origin=${place(start)}`, `destination=${place(start)}`, `travelmode=driving`]
+  if (stops.length > 0) params.push(`waypoints=${stops.map(place).join('|')}`)
   return `https://www.google.com/maps/dir/?${params.join('&')}`
 }
 
 export function buildAppleMapsUrl(orderedPoints: MapLinkPoint[]): string {
   const [start, ...stops] = orderedPoints
-  const coord = (p: MapLinkPoint) => `${p.lat},${p.lon}`
-  const daddr = [...stops.map(coord), coord(start)].join('+to:')
-  return `https://maps.apple.com/?saddr=${coord(start)}&daddr=${daddr}&dirflg=d`
+  const place = (p: MapLinkPoint) => encodeURIComponent(p.label)
+  const daddr = [...stops.map(place), place(start)].join('+to:')
+  return `https://maps.apple.com/?saddr=${place(start)}&daddr=${daddr}&dirflg=d`
 }
 
 // Date formatting utilities (US1 & US2)
