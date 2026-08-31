@@ -6,9 +6,13 @@ import { useLanguage } from '@/app/lib/i18n/LanguageContext'
 
 interface DailyPlanCardProps {
   plan: DailyPlan
+  // When provided, the card header is clickable and selects this day on the
+  // schedule map (kept in sync with the day filter — FR-025).
+  selected?: boolean
+  onSelect?: () => void
 }
 
-export default function DailyPlanCard({ plan }: DailyPlanCardProps) {
+export default function DailyPlanCard({ plan, selected = false, onSelect }: DailyPlanCardProps) {
   const { t, locale } = useLanguage()
   const dateStr = formatDateToISO(plan.date)
   const dayOfWeek = plan.date.toLocaleDateString(locale, { weekday: 'long' })
@@ -19,8 +23,14 @@ export default function DailyPlanCard({ plan }: DailyPlanCardProps) {
   const returnSegment = plan.route?.segments[plan.route.segments.length - 1]
 
   return (
-    <div className="card space-y-4">
-      <div>
+    <div className={`card space-y-4 ${selected ? 'ring-2 ring-blue-500 dark:ring-blue-400' : ''}`}>
+      <div
+        onClick={onSelect}
+        role={onSelect ? 'button' : undefined}
+        tabIndex={onSelect ? 0 : undefined}
+        onKeyDown={onSelect ? (e) => (e.key === 'Enter' || e.key === ' ') && onSelect() : undefined}
+        className={onSelect ? 'cursor-pointer select-none' : undefined}
+      >
         <h3 className="text-xl font-bold text-slate-900 dark:text-white">
           📅 {dayOfWeek.toUpperCase()} {dateStr}
         </h3>
@@ -56,15 +66,16 @@ export default function DailyPlanCard({ plan }: DailyPlanCardProps) {
                 <p className="font-semibold text-slate-900 dark:text-white">{stop.address.displayName}</p>
                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">{stop.address.text}</p>
 
-                <div className="flex items-center gap-4 mt-2 text-sm text-slate-600 dark:text-slate-400">
-                  <span>📍 ({stop.address.lat.toFixed(4)}, {stop.address.lon.toFixed(4)})</span>
-                  {stop.distanceFromPrevious !== undefined && (
-                    <>
-                      <span>→ {formatDistance(stop.distanceFromPrevious)}</span>
-                      <span>{formatDuration(stop.durationFromPrevious || 0)}</span>
-                    </>
-                  )}
-                </div>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                  📅 {t('addressForm.measurementDateLabel')}: {formatDateToISO(stop.measurements.measurementDate)}{' '}
+                  • ⏰ {t('addressForm.deadlineDateLabel')}: {formatDateToISO(stop.measurements.deadlineDate)}
+                </p>
+                {stop.distanceFromPrevious !== undefined && (
+                  <div className="flex items-center gap-4 mt-2 text-sm text-slate-600 dark:text-slate-400">
+                    <span>→ {formatDistance(stop.distanceFromPrevious)}</span>
+                    <span>{formatDuration(stop.durationFromPrevious || 0)}</span>
+                  </div>
+                )}
               </div>
             </div>
           </div>
