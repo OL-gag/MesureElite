@@ -92,6 +92,30 @@ export function findDistanceOutliers<T extends { lat: number; lon: number }>(
     .filter((point) => point.nearestKm > DISTANCE_OUTLIER_THRESHOLD_KM)
 }
 
+// External navigation app deep links, built from a round-trip route: the
+// first point is the start address (used as both origin and final
+// destination), the rest are the day's stops in visiting order. Coordinates
+// only (no user text), so no percent-encoding is needed.
+export interface MapLinkPoint {
+  lat: number
+  lon: number
+}
+
+export function buildGoogleMapsUrl(orderedPoints: MapLinkPoint[]): string {
+  const [start, ...stops] = orderedPoints
+  const coord = (p: MapLinkPoint) => `${p.lat},${p.lon}`
+  const params = [`api=1`, `origin=${coord(start)}`, `destination=${coord(start)}`, `travelmode=driving`]
+  if (stops.length > 0) params.push(`waypoints=${stops.map(coord).join('|')}`)
+  return `https://www.google.com/maps/dir/?${params.join('&')}`
+}
+
+export function buildAppleMapsUrl(orderedPoints: MapLinkPoint[]): string {
+  const [start, ...stops] = orderedPoints
+  const coord = (p: MapLinkPoint) => `${p.lat},${p.lon}`
+  const daddr = [...stops.map(coord), coord(start)].join('+to:')
+  return `https://maps.apple.com/?saddr=${coord(start)}&daddr=${daddr}&dirflg=d`
+}
+
 // Date formatting utilities (US1 & US2)
 
 // Formats the LOCAL calendar day (not UTC): with toISOString() a user in a
