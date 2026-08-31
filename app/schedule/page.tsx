@@ -19,6 +19,7 @@ export default function Schedule() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string>('')
   const [selectedDateIndex, setSelectedDateIndex] = useState(0)
+  const [mapVisible, setMapVisible] = useState(true)
   const [geocodeResults, setGeocodeResults] = useState<GeocodeResponse | null>(null)
 
   useEffect(() => {
@@ -156,57 +157,84 @@ export default function Schedule() {
           </div>
         </section>
 
-        {/* Daily Plans with Map */}
-        <section className="space-y-4">
-          {/* Date Tabs */}
-          <div className="flex flex-wrap gap-2 border-b border-slate-200 dark:border-slate-700">
-            {schedule.dailyPlans.map((plan, idx) => (
-              <button
-                key={plan.id}
-                onClick={() => setSelectedDateIndex(idx)}
-                className={`px-4 py-2 font-medium border-b-2 transition-colors ${
-                  selectedDateIndex === idx
-                    ? 'border-blue-600 text-blue-600 dark:text-blue-400'
-                    : 'border-transparent text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                }`}
-              >
-                📅 {formatDateToISO(plan.date)}
-              </button>
-            ))}
+        {/* General map with day filter (US4: one day at a time, FR-020/021/022/024) */}
+        <section className="space-y-3">
+          <div className="flex justify-between items-center">
+            <h3 className="font-semibold text-slate-900 dark:text-white">
+              {t('results.mapHeading')}
+            </h3>
+            <button onClick={() => setMapVisible((v) => !v)} className="button-secondary text-sm">
+              {mapVisible ? t('schedule.hideMap') : t('schedule.showMap')}
+            </button>
           </div>
 
-          {/* Map and Plan */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-            {/* Map */}
-            <div className="lg:col-span-2 card bg-slate-100 dark:bg-slate-800 flex items-center justify-center min-h-[400px] relative">
-              {(() => {
-                const plan = schedule.dailyPlans[selectedDateIndex]
-                // Every plan (optimized or fallback) carries its round-trip
-                // route — render it exactly like the results page does.
-                if (!plan?.route || plan.route.waypoints.length === 0) {
+          {mapVisible && (
+            <div className="flex flex-col lg:flex-row gap-4">
+              {/* Day filter: horizontal scrollable chips on mobile, side panel on desktop */}
+              <div className="lg:w-56 shrink-0">
+                <p className="hidden lg:block text-sm font-medium text-slate-600 dark:text-slate-400 mb-2">
+                  {t('schedule.daysFilter')}
+                </p>
+                <div className="flex lg:flex-col gap-2 overflow-x-auto lg:overflow-visible pb-2 lg:pb-0">
+                  {schedule.dailyPlans.map((plan, idx) => (
+                    <button
+                      key={plan.id}
+                      onClick={() => setSelectedDateIndex(idx)}
+                      className={`px-3 py-2 rounded-lg border text-sm font-medium whitespace-nowrap text-left transition-colors ${
+                        selectedDateIndex === idx
+                          ? 'bg-blue-600 border-blue-600 text-white'
+                          : 'border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:border-blue-400 hover:text-blue-600 dark:hover:text-blue-400'
+                      }`}
+                    >
+                      📅 {plan.date.toLocaleDateString(locale, { weekday: 'short' })}{' '}
+                      {formatDateToISO(plan.date)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Map: shows only the selected day's round-trip route */}
+              <div className="flex-1 card bg-slate-100 dark:bg-slate-800 flex items-center justify-center min-h-[400px] relative">
+                {(() => {
+                  const plan = schedule.dailyPlans[selectedDateIndex]
+                  // Every plan (optimized or fallback) carries its round-trip
+                  // route — render it exactly like the results page does.
+                  if (!plan?.route || plan.route.waypoints.length === 0) {
+                    return (
+                      <div className="text-center text-slate-500 dark:text-slate-400">
+                        ⚠️ {t('schedule.noStops')}
+                      </div>
+                    )
+                  }
                   return (
-                    <div className="text-center text-slate-500 dark:text-slate-400">
-                      ⚠️ {t('schedule.noStops')}
-                    </div>
+                    <RouteMap
+                      // Remount per day so the map re-fits its bounds to the
+                      // newly selected day's full route (FR-024).
+                      key={plan.id}
+                      route={{
+                        ...plan.route,
+                        addressListId: 'schedule',
+                        calculatedAt: new Date(),
+                      }}
+                    />
                   )
-                }
-                return (
-                  <RouteMap
-                    route={{
-                      ...plan.route,
-                      addressListId: 'schedule',
-                      calculatedAt: new Date(),
-                    }}
-                  />
-                )
-              })()}
+                })()}
+              </div>
             </div>
+          )}
+        </section>
 
-            {/* Daily Plan Card */}
-            <div className="lg:col-span-1">
-              <DailyPlanCard plan={schedule.dailyPlans[selectedDateIndex]} />
-            </div>
-          </div>
+        {/* All days, always fully expanded (FR-023); clicking a day's header
+            selects it on the map and in the filter (FR-025) */}
+        <section className="space-y-4">
+          {schedule.dailyPlans.map((plan, idx) => (
+            <DailyPlanCard
+              key={plan.id}
+              plan={plan}
+              selected={selectedDateIndex === idx}
+              onSelect={() => setSelectedDateIndex(idx)}
+            />
+          ))}
         </section>
 
         {/* Constraints Info */}
