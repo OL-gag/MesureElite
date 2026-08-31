@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { AddressInput, GeocodeResponse } from '@/app/lib/types'
 import { generateId, parseBulkAddressText, findDistanceOutliers, formatDateToISO } from '@/app/lib/utils'
 import { useLanguage } from '@/app/lib/i18n/LanguageContext'
@@ -124,6 +124,25 @@ export default function AddressForm({
   const [geocoding, setGeocoding] = useState(false)
   const [formWarning, setFormWarning] = useState<string>('')
   const [formError, setFormError] = useState<string>('')
+
+  // When addresses are restored (returning via "Edit Addresses"), re-run the
+  // existing per-field validation on mount so statuses and the valid counter
+  // reflect reality instead of staying "pending" until each field is touched.
+  useEffect(() => {
+    if (initialStartAddress.trim()) {
+      setStartStatus({ status: 'geocoding' })
+      validateSingleAddress(initialStartAddress).then(setStartStatus)
+    }
+    initialStops.forEach((text, index) => {
+      if (!text.trim()) return
+      setStopStatuses((prev) => prev.map((s, i) => (i === index ? { status: 'geocoding' } : s)))
+      validateSingleAddress(text).then((result) => {
+        setStopStatuses((prev) => prev.map((s, i) => (i === index ? result : s)))
+      })
+    })
+    // Mount-only: initial props never change after the first render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const handleStartChange = useCallback((value: string) => {
     setStartAddress(value)
