@@ -5,9 +5,9 @@ import { RouteResponse } from './types'
 
 const OSRM_BASE_URL = process.env.NEXT_PUBLIC_OSRM_BASE_URL || 'https://router.project-osrm.org'
 
-interface OSRMRouteResponse {
+interface OSRMTripResponse {
   code: string
-  routes: Array<{
+  trips: Array<{
     distance: number
     duration: number
     geometry: { type: 'LineString'; coordinates: [number, number][] }
@@ -20,7 +20,11 @@ interface OSRMRouteResponse {
       }>
     }>
   }>
+  // One entry per INPUT coordinate; waypoint_index is its position in the
+  // optimized visiting order.
   waypoints?: Array<{
+    waypoint_index: number
+    trips_index: number
     distance: number
     name: string
     location: [number, number]
@@ -71,25 +75,24 @@ export async function calculateRoute(
 
   try {
     // Format coordinates for OSRM: lon1,lat1;lon2,lat2;...
-    // The trip is a closed loop (FR-005): append the start coordinate again at
-    // the end so OSRM also computes the final "last stop → start" leg, instead
-    // of stopping after the last waypoint.
-    const closedLoopWaypoints = [...waypoints, waypoints[0]]
-    const coordinates = closedLoopWaypoints.map((wp) => `${wp.lon},${wp.lat}`).join(';')
+    const coordinates = waypoints.map((wp) => `${wp.lon},${wp.lat}`).join(';')
 
     // Calculate original distance (baseline for optimization gain)
     const originalDistances = calculateOriginalDistance(waypoints)
 
-    // Call OSRM API
-    const url = `${OSRM_BASE_URL}/route/v1/car/${coordinates}?overview=full&geometries=geojson&steps=true`
+    // Call OSRM's TRIP service (traveling-salesman solver): it chooses the
+    // optimal visiting order for a round trip anchored at the first waypoint
+    // (source=first&roundtrip=true also computes the final "last stop → start"
+    // leg). The route service would only follow the input order.
+    const url = `${OSRM_BASE_URL}/trip/v1/car/${coordinates}?source=first&roundtrip=true&overview=full&geometries=geojson&steps=true`
 
     const response = await fetchWithRetry(url)
     // OSRM answers routing errors (e.g. NoRoute) with a structured JSON body
     // even on a non-2xx status, so parse it before deciding how to fail —
     // relying on response.ok alone would discard that detail.
-    const osrmData = (await response.json().catch(() => null)) as OSRMRouteResponse | null
+    const osrmData = (await response.json().catch(() => null)) as OSRMTripResponse | null
 
-    if (osrmData?.code === 'NoRoute') {
+    if (osrmData?.code === 'NoRoute' || osrmData?.code === 'NoTrips') {
       // Usually means a waypoint was geocoded to a location OSRM's road
       // network can't reach by car from the others (e.g. a wrong, far-away
       // match from an under-specified address) — a distinct, actionable
@@ -115,37 +118,52 @@ export async function calculateRoute(
       throw new Error(`OSRM error: ${osrmData?.code ?? 'unknown'}`)
     }
 
-    if (!osrmData.routes || osrmData.routes.length === 0) {
-      throw new Error('No route found')
+    if (!osrmData.trips || osrmData.trips.length === 0) {
+      throw new Error('No trip found')
     }
 
-    const route = osrmData.routes[0]
-    const totalDistance = route.distance
-    const totalDuration = route.duration
+    const trip = osrmData.trips[0]
+    const totalDistance = trip.distance
+    const totalDuration = trip.duration
     const optimizationGain = originalDistances.total > 0
       ? ((originalDistances.total - totalDistance) / originalDistances.total) * 100
       : 0
 
     const routeId = `route-${Date.now()}`
 
-    // Create segments from route legs, concatenating each leg's step
-    // geometries into a single road-following path per segment (OSRM's
-    // top-level route.geometry is one combined line for the whole trip and
-    // doesn't expose per-leg boundaries, so this is built from the steps
-    // instead — needed to color each segment individually on the map).
-    const segments = route.legs.map((leg, index) => ({
+    // Reorder the input waypoints into OSRM's optimized visiting order:
+    // response.waypoints[i] describes input i, and its waypoint_index is that
+    // input's position in the trip. Fall back to input order if the mapping
+    // is missing or inconsistent.
+    let ordered = waypoints
+    if (osrmData.waypoints && osrmData.waypoints.length === waypoints.length) {
+      const arr: typeof waypoints = new Array(waypoints.length)
+      osrmData.waypoints.forEach((tw, inputIdx) => {
+        arr[tw.waypoint_index] = waypoints[inputIdx]
+      })
+      if (arr.every(Boolean)) ordered = arr
+    }
+
+    // Create segments from trip legs (leg k connects ordered[k] to the next
+    // ordered waypoint; with roundtrip=true the last leg returns to the
+    // start), concatenating each leg's step geometries into a single
+    // road-following path per segment (OSRM's top-level geometry is one
+    // combined line for the whole trip and doesn't expose per-leg boundaries,
+    // so this is built from the steps instead — needed to color each segment
+    // individually on the map).
+    const segments = trip.legs.map((leg, index) => ({
       id: `seg-${index}`,
       routeId,
-      fromWaypoint: waypoints[index].id,
-      toWaypoint: waypoints[(index + 1) % waypoints.length].id,
+      fromWaypoint: ordered[index].id,
+      toWaypoint: ordered[(index + 1) % ordered.length].id,
       sequence: index + 1,
       distance: leg.distance,
       duration: leg.duration,
       geometry: leg.steps.flatMap((step) => step.geometry.coordinates),
     }))
 
-    // Create waypoints array with returned order
-    const resultWaypoints = waypoints.map((wp, index) => ({
+    // Create waypoints array in the optimized visiting order
+    const resultWaypoints = ordered.map((wp, index) => ({
       id: wp.id,
       routeId,
       originalAddressId: wp.id,
