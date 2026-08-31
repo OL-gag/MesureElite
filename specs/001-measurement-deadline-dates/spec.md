@@ -8,6 +8,14 @@
 
 **Input**: User description: "The user must be able to add a desired date to take the measurement and a deadline date. So for each address add two date fields. By default the current date."
 
+## Clarifications
+
+### Session 2026-08-31
+
+- Q: Quand aucune journée n'est sélectionnée dans le filtre, la carte générale doit-elle afficher les itinéraires de tous les jours en même temps, ou une seule journée à la fois? → A: Une seule journée à la fois; le filtre latéral choisit laquelle (défaut: la première journée)
+- Q: Sous la carte, la liste des journées doit-elle rester complète en tout temps, ou suivre le filtre de journée sélectionné? → A: Tous les jours toujours entièrement dépliés, peu importe le filtre; cliquer l'entête d'un jour met à jour la carte (sync avec le filtre latéral)
+- Q: Sur mobile (écran étroit), où le filtre de journées doit-il se placer? → A: Rangée horizontale de pastilles (dates) au-dessus de la carte, défilable au besoin
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Add Measurement Date to Address (Priority: P1)
@@ -62,6 +70,23 @@ A field technician has multiple addresses to measure with different measurement 
 
 ---
 
+### User Story 4 - Consulter les itinéraires optimisés par jour (Priority: P2)
+
+L'usager doit voir le résultat des itinéraires optimisés, jour par jour. En haut, une carte affichant l'itinéraire d'une seule journée à la fois, avec un filtre de journées placé sur le côté (défaut: la première journée). La carte peut être masquée. Sous la carte, chaque jour est listé avec son itinéraire complet (incluant toujours le point de départ et le retour). Quand l'usager change de journée, le zoom de la carte se réajuste automatiquement pour englober tous les points du parcours de cette journée.
+
+**Why this priority**: C'est la vue de consommation du plan généré (US3); sans une présentation claire par jour, le plan optimisé n'est pas actionnable sur le terrain.
+
+**Independent Test**: Générer un horaire multi-jours, puis vérifier: (1) la carte montre uniquement la journée sélectionnée, (2) le filtre latéral change la journée affichée et le zoom se réajuste pour couvrir tout le parcours, (3) la carte peut être masquée/réaffichée, (4) chaque journée est listée sous la carte avec départ et retour.
+
+**Acceptance Scenarios**:
+
+1. **Given** un horaire généré de 3 jours, **When** l'usager arrive sur la page, **Then** la carte affiche l'itinéraire de la première journée et le filtre latéral indique la journée active
+2. **Given** la carte affiche le jour 1, **When** l'usager sélectionne le jour 2 dans le filtre latéral, **Then** la carte affiche uniquement l'itinéraire du jour 2 et le zoom se réajuste pour montrer tous les points du parcours (départ, arrêts, retour)
+3. **Given** la carte est visible, **When** l'usager clique sur « Masquer la carte », **Then** la carte est masquée et la liste des jours reste accessible; un clic inverse la réaffiche
+4. **Given** un horaire généré, **When** l'usager fait défiler sous la carte, **Then** chaque journée y est présentée avec son itinéraire ordonné, commençant par le point de départ et se terminant par le retour au point de départ
+
+---
+
 ### Edge Cases
 
 - What happens when a user sets a deadline date before the measurement date? (Should be allowed but could display a warning)
@@ -102,6 +127,15 @@ A field technician has multiple addresses to measure with different measurement 
 - **FR-018**: System MUST handle overdue addresses (deadline already passed) by including them in the earliest available slot without error
 - **FR-019**: System MUST support future manual reassignment of addresses between days, with automatic route re-optimization (v1.2+ feature)
 
+#### P2 - Schedule Results View (US4)
+
+- **FR-020**: The schedule map MUST display exactly one day's route at a time (never multiple days overlaid); the day filter selects which one, defaulting to the first scheduled day
+- **FR-021**: The day filter MUST be presented as a side panel next to the map on wide screens; on narrow/mobile screens it MUST collapse into a horizontally scrollable row of date chips above the map
+- **FR-022**: The map MUST be collapsible (hide/show toggle); hiding the map never hides the day itineraries
+- **FR-023**: Below the map, every scheduled day MUST be listed with its full itinerary always fully expanded (no accordion, independent of the selected day filter), each itinerary starting at the start address and ending with the return to the start address
+- **FR-024**: When the selected day changes, the map MUST re-fit its zoom/bounds to include every point of that day's route (start, all stops, return)
+- **FR-025**: Clicking a day's header in the list below the map MUST select that day (map updates and side filter highlights it), keeping list, filter, and map in sync
+
 ### Key Entities
 
 - **Address**: Extended to include `measurementDate` and `deadlineDate` fields (both dates, nullable or defaulting to today)
@@ -135,3 +169,4 @@ A field technician has multiple addresses to measure with different measurement 
 - Users have access to standard date picker UI controls
 - The measurement date and deadline date are independent; both can be set, and deadline can be before or after measurement date
 - Date validation follows standard patterns (no dates in the far past, future dates are generally acceptable)
+- The map hide/show toggle does not need to persist across sessions (default: map visible on each visit)
