@@ -86,6 +86,13 @@ export interface GeocodeRequest {
   }[]
 }
 
+// A geocoded address far from the others in the same submission (see
+// findDistanceOutliers in utils.ts) — likely matched to the wrong place.
+export interface DistanceOutlier {
+  label: string
+  nearestKm: number
+}
+
 export interface GeocodeResponse {
   results: {
     id: string

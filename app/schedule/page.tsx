@@ -5,7 +5,7 @@ import dynamic from 'next/dynamic'
 import { useRouter } from 'next/navigation'
 import ErrorBoundary from '@/app/components/ErrorBoundary'
 import DailyPlanCard from '@/app/components/DailyPlanCard'
-import { MeasurementSchedule, GeocodeResponse } from '@/app/lib/types'
+import { MeasurementSchedule, GeocodeResponse, DistanceOutlier } from '@/app/lib/types'
 import { useLanguage } from '@/app/lib/i18n/LanguageContext'
 import { translateError } from '@/app/lib/i18n/translations'
 import { formatDateToISO, formatDuration } from '@/app/lib/utils'
@@ -21,6 +21,7 @@ export default function Schedule() {
   const [selectedDateIndex, setSelectedDateIndex] = useState(0)
   const [mapVisible, setMapVisible] = useState(true)
   const [geocodeResults, setGeocodeResults] = useState<GeocodeResponse | null>(null)
+  const [outliers, setOutliers] = useState<DistanceOutlier[]>([])
 
   useEffect(() => {
     const loadSchedule = async () => {
@@ -30,6 +31,17 @@ export default function Schedule() {
         if (storedResults) {
           try {
             setGeocodeResults(JSON.parse(storedResults))
+          } catch {
+            // Ignore: the warning banner is best-effort
+          }
+        }
+
+        // Load the distance-outlier warning computed at submission time (the
+        // form showed it briefly before navigating away) so it survives here.
+        const storedOutliers = sessionStorage.getItem('addressOutliers')
+        if (storedOutliers) {
+          try {
+            setOutliers(JSON.parse(storedOutliers))
           } catch {
             // Ignore: the warning banner is best-effort
           }
@@ -113,24 +125,6 @@ export default function Schedule() {
           </button>
         </section>
 
-        {/* Addresses excluded from the plan (failed geocoding) */}
-        {geocodeResults && geocodeResults.invalidCount > 0 && (
-          <section className="p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700 rounded-lg">
-            <p className="font-semibold text-yellow-800 dark:text-yellow-300">
-              ⚠️ {t('schedule.invalidAddressesWarning', { count: geocodeResults.invalidCount })}
-            </p>
-            <ul className="mt-2 space-y-1">
-              {geocodeResults.results
-                .filter((r) => r.status === 'invalid')
-                .map((r) => (
-                  <li key={r.id} className="text-sm text-yellow-700 dark:text-yellow-400">
-                    ✗ {translateError(t, r.errorCode, r.error)}
-                  </li>
-                ))}
-            </ul>
-          </section>
-        )}
-
         {/* Summary Metrics */}
         <section className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div className="card">
@@ -158,6 +152,38 @@ export default function Schedule() {
             </p>
           </div>
         </section>
+
+        {/* Warnings — shown only when there is at least one */}
+        {((geocodeResults?.invalidCount ?? 0) > 0 || outliers.length > 0) && (
+          <section className="p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700 rounded-lg space-y-3">
+            {geocodeResults && geocodeResults.invalidCount > 0 && (
+              <div>
+                <p className="font-semibold text-yellow-800 dark:text-yellow-300">
+                  ⚠️ {t('schedule.invalidAddressesWarning', { count: geocodeResults.invalidCount })}
+                </p>
+                <ul className="mt-2 space-y-1">
+                  {geocodeResults.results
+                    .filter((r) => r.status === 'invalid')
+                    .map((r) => (
+                      <li key={r.id} className="text-sm text-yellow-700 dark:text-yellow-400">
+                        ✗ {translateError(t, r.errorCode, r.error)}
+                      </li>
+                    ))}
+                </ul>
+              </div>
+            )}
+
+            {outliers.length > 0 && (
+              <div>
+                <p className="font-semibold text-yellow-800 dark:text-yellow-300">
+                  {t('addressForm.outlierWarning', {
+                    addresses: outliers.map((o) => `${o.label} (${Math.round(o.nearestKm)} km)`).join(' · '),
+                  })}
+                </p>
+              </div>
+            )}
+          </section>
+        )}
 
         {/* General map with day filter (US4: one day at a time, FR-020/021/022/024) */}
         <section className="space-y-3">

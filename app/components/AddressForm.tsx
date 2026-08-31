@@ -1,13 +1,13 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { AddressInput, GeocodeResponse } from '@/app/lib/types'
+import { AddressInput, GeocodeResponse, DistanceOutlier } from '@/app/lib/types'
 import { generateId, parseBulkAddressText, findDistanceOutliers, formatDateToISO } from '@/app/lib/utils'
 import { useLanguage } from '@/app/lib/i18n/LanguageContext'
 import { translateError } from '@/app/lib/i18n/translations'
 
 interface AddressFormProps {
-  onSubmit: (addresses: AddressInput[], geocodeResults: GeocodeResponse) => void
+  onSubmit: (addresses: AddressInput[], geocodeResults: GeocodeResponse, outliers: DistanceOutlier[]) => void
   loading?: boolean
   initialStartAddress?: string
   initialStopAddresses?: string[]
@@ -350,6 +350,8 @@ export default function AddressForm({
               })
             : ''
         )
+        // Passed to onSubmit (raw, untranslated) so the destination page can
+        // still show this warning after AddressForm unmounts.
 
         const addressInputs: AddressInput[] = combinedTexts.map((text, i) => {
           const result = geocodeResults.results[i]
@@ -382,7 +384,7 @@ export default function AddressForm({
           }
         })
 
-        onSubmit(addressInputs, geocodeResults)
+        onSubmit(addressInputs, geocodeResults, outliers)
       } catch (err) {
         setFormError(t('addressForm.errorSubmitFailed'))
       } finally {
