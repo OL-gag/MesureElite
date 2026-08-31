@@ -22,9 +22,14 @@ export default function DailyPlanCard({ plan, selected = false, onSelect }: Dail
   const startWaypoint = plan.route?.waypoints.find((wp) => wp.isStartPoint)
   const returnSegment = plan.route?.segments[plan.route.segments.length - 1]
 
-  // Same round-trip order as the map/itinerary: start, then stops in visiting order.
+  // Same round-trip order as the map/itinerary: start, then stops in visiting
+  // order. Uses each address's geocoded display name (not coordinates) —
+  // see buildGoogleMapsUrl/buildAppleMapsUrl for why.
   const orderedPoints = startWaypoint
-    ? [startWaypoint, ...plan.stops.map((s) => s.address)]
+    ? [
+        { label: startWaypoint.displayName },
+        ...plan.stops.map((s) => ({ label: s.address.displayName })),
+      ]
     : undefined
 
   return (
