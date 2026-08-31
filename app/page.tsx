@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import AddressForm from './components/AddressForm'
 import ErrorBoundary from './components/ErrorBoundary'
-import { AddressInput, GeocodeResponse } from './lib/types'
+import { AddressInput, GeocodeResponse, DistanceOutlier } from './lib/types'
 import { useLanguage } from './lib/i18n/LanguageContext'
 import { translateError } from './lib/i18n/translations'
 import { formatDateToISO } from './lib/utils'
@@ -45,10 +45,17 @@ export default function Home() {
     }
   })
 
-  const handleFormSubmit = async (addresses: AddressInput[], geocodeResults: GeocodeResponse) => {
+  const handleFormSubmit = async (
+    addresses: AddressInput[],
+    geocodeResults: GeocodeResponse,
+    outliers: DistanceOutlier[]
+  ) => {
     setLoading(true)
 
     sessionStorage.setItem('addressTexts', JSON.stringify(addresses.map((a) => a.text)))
+    // Always overwrite (even when empty) so a warning from a previous
+    // submission never lingers on the next one.
+    sessionStorage.setItem('addressOutliers', JSON.stringify(outliers))
     sessionStorage.setItem('addresses', JSON.stringify(addresses.map((a) => ({
       id: a.id,
       text: a.text,
