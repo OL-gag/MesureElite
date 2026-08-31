@@ -118,6 +118,8 @@ export const translations: Record<Locale, Record<string, string>> = {
     'schedule.hideMap': 'Masquer la carte',
     'schedule.showMap': 'Afficher la carte',
     'schedule.daysFilter': 'Journées',
+    'schedule.openInGoogleMaps': 'Ouvrir dans Google Maps',
+    'schedule.openInAppleMaps': 'Ouvrir dans Apple Plans',
     'schedule.invalidAddressesWarning':
       '{count} adresse(s) introuvable(s) — exclue(s) du plan de mesure. Corrigez-les via « Modifier les adresses » :',
     'schedule.noStops': 'Aucun arrêt pour cette journée',
@@ -242,6 +244,8 @@ export const translations: Record<Locale, Record<string, string>> = {
     'schedule.hideMap': 'Hide map',
     'schedule.showMap': 'Show map',
     'schedule.daysFilter': 'Days',
+    'schedule.openInGoogleMaps': 'Open in Google Maps',
+    'schedule.openInAppleMaps': 'Open in Apple Maps',
     'schedule.invalidAddressesWarning':
       '{count} address(es) not found — excluded from the measurement plan. Fix them via "Edit Addresses":',
     'schedule.noStops': 'No stops for this day',

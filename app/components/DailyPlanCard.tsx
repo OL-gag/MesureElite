@@ -1,7 +1,7 @@
 'use client'
 
 import { DailyPlan } from '@/app/lib/types'
-import { formatDistance, formatDuration, formatDateToISO } from '@/app/lib/utils'
+import { formatDistance, formatDuration, formatDateToISO, buildGoogleMapsUrl, buildAppleMapsUrl } from '@/app/lib/utils'
 import { useLanguage } from '@/app/lib/i18n/LanguageContext'
 
 interface DailyPlanCardProps {
@@ -22,6 +22,11 @@ export default function DailyPlanCard({ plan, selected = false, onSelect }: Dail
   const startWaypoint = plan.route?.waypoints.find((wp) => wp.isStartPoint)
   const returnSegment = plan.route?.segments[plan.route.segments.length - 1]
 
+  // Same round-trip order as the map/itinerary: start, then stops in visiting order.
+  const orderedPoints = startWaypoint
+    ? [startWaypoint, ...plan.stops.map((s) => s.address)]
+    : undefined
+
   return (
     <div className={`card space-y-4 ${selected ? 'ring-2 ring-blue-500 dark:ring-blue-400' : ''}`}>
       <div
@@ -39,6 +44,27 @@ export default function DailyPlanCard({ plan, selected = false, onSelect }: Dail
           {formatDistance(plan.metrics.totalDistance)} • {formatDuration(plan.metrics.totalDuration)}
         </p>
       </div>
+
+      {orderedPoints && (
+        <div className="flex gap-3 text-sm">
+          <a
+            href={buildGoogleMapsUrl(orderedPoints)}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-blue-600 dark:text-blue-400 hover:underline"
+          >
+            🗺️ {t('schedule.openInGoogleMaps')}
+          </a>
+          <a
+            href={buildAppleMapsUrl(orderedPoints)}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-blue-600 dark:text-blue-400 hover:underline"
+          >
+            🍎 {t('schedule.openInAppleMaps')}
+          </a>
+        </div>
+      )}
 
       <div className="space-y-2">
         {startWaypoint && (
