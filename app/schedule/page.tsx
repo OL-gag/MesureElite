@@ -51,8 +51,10 @@ export default function Schedule() {
                 ...stop,
                 measurements: {
                   ...stop.measurements,
-                  measurementDate: new Date(stop.measurements.measurementDate),
-                  deadlineDate: new Date(stop.measurements.deadlineDate),
+                  // Same local re-anchoring as plan.date: these are calendar
+                  // days serialized from the server's midnight.
+                  measurementDate: new Date(String(stop.measurements.measurementDate).slice(0, 10) + 'T00:00:00'),
+                  deadlineDate: new Date(String(stop.measurements.deadlineDate).slice(0, 10) + 'T00:00:00'),
                 },
               })),
             })),

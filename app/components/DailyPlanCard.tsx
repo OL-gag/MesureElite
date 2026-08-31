@@ -66,15 +66,16 @@ export default function DailyPlanCard({ plan, selected = false, onSelect }: Dail
                 <p className="font-semibold text-slate-900 dark:text-white">{stop.address.displayName}</p>
                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">{stop.address.text}</p>
 
-                <div className="flex items-center gap-4 mt-2 text-sm text-slate-600 dark:text-slate-400">
-                  <span>📍 ({stop.address.lat.toFixed(4)}, {stop.address.lon.toFixed(4)})</span>
-                  {stop.distanceFromPrevious !== undefined && (
-                    <>
-                      <span>→ {formatDistance(stop.distanceFromPrevious)}</span>
-                      <span>{formatDuration(stop.durationFromPrevious || 0)}</span>
-                    </>
-                  )}
-                </div>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                  📅 {t('addressForm.measurementDateLabel')}: {formatDateToISO(stop.measurements.measurementDate)}{' '}
+                  • ⏰ {t('addressForm.deadlineDateLabel')}: {formatDateToISO(stop.measurements.deadlineDate)}
+                </p>
+                {stop.distanceFromPrevious !== undefined && (
+                  <div className="flex items-center gap-4 mt-2 text-sm text-slate-600 dark:text-slate-400">
+                    <span>→ {formatDistance(stop.distanceFromPrevious)}</span>
+                    <span>{formatDuration(stop.durationFromPrevious || 0)}</span>
+                  </div>
+                )}
               </div>
             </div>
           </div>
