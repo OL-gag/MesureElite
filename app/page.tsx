@@ -26,9 +26,13 @@ export default function Home() {
     }
   })
 
-  // Restore the measurement/deadline dates alongside the address texts, parsing
-  // the stored payload once for both fields.
-  const [initialDates] = useState<{ measurement: (string | undefined)[]; deadline: (string | undefined)[] } | null>(() => {
+  // Restore the measurement/deadline dates and reference notes alongside the
+  // address texts, parsing the stored payload once for all three fields.
+  const [initialDates] = useState<{
+    measurement: (string | undefined)[]
+    deadline: (string | undefined)[]
+    reference: (string | undefined)[]
+  } | null>(() => {
     if (typeof window === 'undefined') return null
     try {
       const raw = sessionStorage.getItem('addresses')
@@ -39,6 +43,7 @@ export default function Home() {
       return {
         measurement: addresses.map((a: any) => toDateStr(a.measurementDate)),
         deadline: addresses.map((a: any) => toDateStr(a.deadlineDate)),
+        reference: addresses.map((a: any) => a.reference as string | undefined),
       }
     } catch {
       return null
@@ -61,6 +66,7 @@ export default function Home() {
       text: a.text,
       measurementDate: a.measurementDate?.toISOString(),
       deadlineDate: a.deadlineDate?.toISOString(),
+      reference: a.reference,
       order: a.order,
     }))))
 
@@ -196,6 +202,7 @@ export default function Home() {
               initialStopAddresses={initialAddressTexts?.slice(1)}
               initialMeasurementDates={initialDates?.measurement.slice(1)}
               initialDeadlineDates={initialDates?.deadline.slice(1)}
+              initialReferences={initialDates?.reference.slice(1)}
             />
           </div>
         </section>

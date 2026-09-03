@@ -23,6 +23,9 @@ export interface AddressInput {
   // Measurement scheduling fields (US1 & US2)
   measurementDate?: Date
   deadlineDate?: Date
+  // Free-text job details (room, material, phone, notes...) carried through
+  // to the itinerary — mainly populated by the weekly-planning JSON import.
+  reference?: string
 }
 
 export interface AddressList {
@@ -175,6 +178,8 @@ export interface DailyStop {
   priority: 'urgent' | 'normal' | 'flexible'
   distanceFromPrevious?: number
   durationFromPrevious?: number
+  // See AddressInput.reference.
+  reference?: string
 }
 
 export interface DailyPlan {

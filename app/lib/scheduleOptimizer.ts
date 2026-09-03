@@ -220,6 +220,7 @@ function createDailyPlan(
         daysUntilDeadline: daysLeft,
       },
       priority: getPriority(originalAddr.deadlineDate!, date),
+      reference: originalAddr.reference,
       // With a start point, leg idx arrives at stop idx (leg 0 = start → first
       // stop, so the first stop's distance from home is real data, not blank).
       distanceFromPrevious: hasStart
@@ -292,6 +293,7 @@ function createDailyPlanWithoutOptimization(
         daysUntilDeadline: daysLeft,
       },
       priority: getPriority(addr.deadlineDate!, date),
+      reference: addr.reference,
     }
   })
 

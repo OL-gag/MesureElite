@@ -129,6 +129,9 @@ export default function Results() {
                           ⏰ {t('addressForm.deadlineDateLabel')}: {formatDateToISO(addressData.deadlineDate)}
                         </p>
                       )}
+                      {addressData?.reference && (
+                        <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">📝 {addressData.reference}</p>
+                      )}
                       {segment && !waypoint.isEndPoint && (
                         <p className="text-sm text-slate-600 dark:text-slate-400 mt-2">
                           → {formatDistance(segment.distance)} • {formatDuration(segment.duration)}

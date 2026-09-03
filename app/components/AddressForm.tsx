@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { AddressInput, GeocodeResponse, DistanceOutlier } from '@/app/lib/types'
 import { generateId, parseBulkAddressText, findDistanceOutliers, formatDateToISO } from '@/app/lib/utils'
+import { parseWeeklyImportJson, WEEKLY_IMPORT_PROMPT } from '@/app/lib/weeklyImport'
 import { useLanguage } from '@/app/lib/i18n/LanguageContext'
 import { translateError } from '@/app/lib/i18n/translations'
 
@@ -13,6 +14,7 @@ interface AddressFormProps {
   initialStopAddresses?: string[]
   initialMeasurementDates?: (string | undefined)[]
   initialDeadlineDates?: (string | undefined)[]
+  initialReferences?: (string | undefined)[]
 }
 
 const MAX_STOPS = 20
@@ -104,6 +106,7 @@ export default function AddressForm({
   initialStopAddresses,
   initialMeasurementDates,
   initialDeadlineDates,
+  initialReferences,
 }: AddressFormProps) {
   const { t } = useLanguage()
   const todayISO = formatDateToISO(new Date())
@@ -120,10 +123,33 @@ export default function AddressForm({
   const [stopDeadlineDates, setStopDeadlineDates] = useState<string[]>(
     initialStops.map((_, i) => initialDeadlineDates?.[i] || todayISO)
   )
+  const [stopReferences, setStopReferences] = useState<string[]>(
+    initialStops.map((_, i) => initialReferences?.[i] || '')
+  )
 
   const [geocoding, setGeocoding] = useState(false)
   const [formWarning, setFormWarning] = useState<string>('')
   const [formError, setFormError] = useState<string>('')
+
+  // Weekly-planning JSON import (see app/lib/weeklyImport.ts)
+  const [importOpen, setImportOpen] = useState(false)
+  const [importText, setImportText] = useState('')
+  const [importError, setImportError] = useState('')
+  const [importMessage, setImportMessage] = useState('')
+  const [promptCopied, setPromptCopied] = useState(false)
+
+  // Validates every address at the current stopAddresses indices (assumes
+  // stopStatuses already has a matching length) — shared by the mount
+  // revalidation below and by the weekly-planning import.
+  const revalidateStops = useCallback((texts: string[]) => {
+    texts.forEach((text, index) => {
+      if (!text.trim()) return
+      setStopStatuses((prev) => prev.map((s, i) => (i === index ? { status: 'geocoding' } : s)))
+      validateSingleAddress(text).then((result) => {
+        setStopStatuses((prev) => prev.map((s, i) => (i === index ? result : s)))
+      })
+    })
+  }, [])
 
   // When addresses are restored (returning via "Edit Addresses"), re-run the
   // existing per-field validation on mount so statuses and the valid counter
@@ -133,13 +159,7 @@ export default function AddressForm({
       setStartStatus({ status: 'geocoding' })
       validateSingleAddress(initialStartAddress).then(setStartStatus)
     }
-    initialStops.forEach((text, index) => {
-      if (!text.trim()) return
-      setStopStatuses((prev) => prev.map((s, i) => (i === index ? { status: 'geocoding' } : s)))
-      validateSingleAddress(text).then((result) => {
-        setStopStatuses((prev) => prev.map((s, i) => (i === index ? result : s)))
-      })
-    })
+    revalidateStops(initialStops)
     // Mount-only: initial props never change after the first render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -191,6 +211,7 @@ export default function AddressForm({
     setStopStatuses((prev) => (prev.length >= MAX_STOPS ? prev : [...prev, PENDING_STATUS]))
     setStopMeasurementDates((prev) => (prev.length >= MAX_STOPS ? prev : [...prev, todayISO]))
     setStopDeadlineDates((prev) => (prev.length >= MAX_STOPS ? prev : [...prev, todayISO]))
+    setStopReferences((prev) => (prev.length >= MAX_STOPS ? prev : [...prev, '']))
   }, [t, todayISO])
 
   const removeStopAddress = useCallback((index: number) => {
@@ -198,6 +219,7 @@ export default function AddressForm({
     setStopStatuses((prev) => (prev.length > 2 ? prev.filter((_, i) => i !== index) : prev))
     setStopMeasurementDates((prev) => (prev.length > 2 ? prev.filter((_, i) => i !== index) : prev))
     setStopDeadlineDates((prev) => (prev.length > 2 ? prev.filter((_, i) => i !== index) : prev))
+    setStopReferences((prev) => (prev.length > 2 ? prev.filter((_, i) => i !== index) : prev))
   }, [])
 
   const updateStopMeasurementDate = useCallback((index: number, dateStr: string) => {
@@ -260,6 +282,12 @@ export default function AddressForm({
           return nextDates
         })
 
+        setStopReferences((prevRefs) => {
+          const nextRefs = [...prevRefs]
+          nextRefs.splice(index + 1, 0, ...linesToInsert.map(() => ''))
+          return nextRefs
+        })
+
         // Validate the pasted line and every newly-inserted line right away,
         // since a paste is a "finished editing" signal for each of those lines.
         const pastedEntries = [lines[0], ...linesToInsert].map((text, offset) => ({
@@ -277,6 +305,57 @@ export default function AddressForm({
     },
     [t, todayISO]
   )
+
+  const handleCopyPrompt = useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText(WEEKLY_IMPORT_PROMPT)
+      setPromptCopied(true)
+      setTimeout(() => setPromptCopied(false), 2000)
+    } catch {
+      // Clipboard API unavailable/denied — the user can still select the
+      // prompt text manually if it's shown elsewhere.
+    }
+  }, [])
+
+  // Replaces the entire stop list with the imported JSON (weekly planning
+  // email → AI chat → JSON, see app/lib/weeklyImport.ts). Does not touch the
+  // start/return address, which the weekly email never includes.
+  const handleImport = useCallback(() => {
+    setImportError('')
+    setImportMessage('')
+    if (!importText.trim()) return
+
+    let parsed
+    try {
+      parsed = parseWeeklyImportJson(importText)
+    } catch {
+      setImportError(t('addressForm.importInvalidJson'))
+      return
+    }
+
+    if (parsed.stops.length === 0) {
+      setImportError(t('addressForm.importEmpty'))
+      return
+    }
+
+    const overflow = parsed.stops.length > MAX_STOPS
+    const kept = parsed.stops.slice(0, MAX_STOPS)
+    const newAddresses = kept.map((s) => s.address)
+
+    setStopAddresses(newAddresses)
+    setStopStatuses(newAddresses.map(() => ({ status: 'geocoding' as const })))
+    setStopMeasurementDates(kept.map((s) => s.measurementDate))
+    setStopDeadlineDates(kept.map((s) => s.deadlineDate))
+    setStopReferences(kept.map((s) => s.reference))
+    revalidateStops(newAddresses)
+
+    const parts = [t('addressForm.importSuccess', { count: kept.length })]
+    if (parsed.skipped > 0) parts.push(t('addressForm.importSkipped', { count: parsed.skipped }))
+    if (overflow) parts.push(t('addressForm.maxStopsWarning', { max: MAX_STOPS }))
+    setImportMessage(parts.join(' '))
+    setImportText('')
+    setFormError('')
+  }, [importText, revalidateStops, t])
 
   const filledStopCount = stopAddresses.filter((a) => a.trim()).length
   const validStopCount = stopStatuses.filter((s, i) => stopAddresses[i]?.trim() && isUsable(s)).length
@@ -365,6 +444,7 @@ export default function AddressForm({
           const deadlineDateStr = isStartPoint ? undefined : stopDeadlineDates[i - 1]
           const measurementDate = measurementDateStr ? new Date(measurementDateStr + 'T00:00:00') : undefined
           const deadlineDate = deadlineDateStr ? new Date(deadlineDateStr + 'T00:00:00') : undefined
+          const reference = isStartPoint ? undefined : stopReferences[i - 1] || undefined
           return {
             id: generateId(),
             text,
@@ -381,6 +461,7 @@ export default function AddressForm({
             updatedAt: new Date(),
             measurementDate,
             deadlineDate,
+            reference,
           }
         })
 
@@ -391,7 +472,7 @@ export default function AddressForm({
         setGeocoding(false)
       }
     },
-    [startAddress, stopAddresses, stopMeasurementDates, stopDeadlineDates, onSubmit, t]
+    [startAddress, stopAddresses, stopMeasurementDates, stopDeadlineDates, stopReferences, onSubmit, t]
   )
 
   const isBusy = geocoding || loading
@@ -413,6 +494,44 @@ export default function AddressForm({
           disabled={isBusy}
         />
         <FieldStatusMessage status={startStatus} addressText={startAddress} />
+      </div>
+
+      {/* Weekly-planning JSON import — see app/lib/weeklyImport.ts */}
+      <div className="border rounded-md p-3 space-y-3 bg-slate-50 dark:bg-slate-800/50">
+        <button
+          type="button"
+          onClick={() => setImportOpen((v) => !v)}
+          className="w-full flex items-center justify-between text-sm font-medium text-slate-700 dark:text-slate-300"
+        >
+          <span>📋 {t('addressForm.importToggle')}</span>
+          <span>{importOpen ? '▲' : '▼'}</span>
+        </button>
+
+        {importOpen && (
+          <div className="space-y-3">
+            <p className="text-xs text-slate-500 dark:text-slate-400">{t('addressForm.importHelp')}</p>
+            <button type="button" onClick={handleCopyPrompt} className="button-secondary text-sm">
+              {promptCopied ? t('addressForm.importPromptCopied') : t('addressForm.importCopyPrompt')}
+            </button>
+            <textarea
+              value={importText}
+              onChange={(e) => setImportText(e.target.value)}
+              placeholder={t('addressForm.importPlaceholder')}
+              className="input-field font-mono text-xs h-32"
+              disabled={isBusy}
+            />
+            <button
+              type="button"
+              onClick={handleImport}
+              disabled={!importText.trim() || isBusy}
+              className="button-primary text-sm w-full"
+            >
+              {t('addressForm.importButton')}
+            </button>
+            {importMessage && <p className="success-message">{importMessage}</p>}
+            {importError && <p className="error-message">{importError}</p>}
+          </div>
+        )}
       </div>
 
       {/* Stop addresses — FR-001, up to 20, separate from the start/return field */}
@@ -481,6 +600,9 @@ export default function AddressForm({
                 disabled={isBusy}
               />
             </div>
+            {stopReferences[index] && (
+              <p className="text-xs text-slate-500 dark:text-slate-400">📝 {stopReferences[index]}</p>
+            )}
           </div>
         ))}
       </div>
