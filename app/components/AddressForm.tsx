@@ -17,7 +17,7 @@ interface AddressFormProps {
   initialReferences?: (string | undefined)[]
 }
 
-const MAX_STOPS = 20
+const MAX_STOPS = 30
 const MIN_VALID_STOPS = 2
 
 type FieldStatus = {

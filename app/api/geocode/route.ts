@@ -24,9 +24,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       )
     }
 
-    if (body.addresses.length > 25) {
+    // 30 stops (AddressForm's MAX_STOPS) + the start/return address
+    if (body.addresses.length > 31) {
       return NextResponse.json(
-        { error: 'Maximum 25 addresses allowed', errorCode: 'TOO_MANY_ADDRESSES' },
+        { error: 'Maximum 31 addresses allowed', errorCode: 'TOO_MANY_ADDRESSES' },
         { status: 400 }
       )
     }
