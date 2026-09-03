@@ -90,7 +90,9 @@ export default function DailyPlanCard({ plan, selected = false, onSelect }: Dail
           <div key={stop.id} className="p-3 bg-slate-50 dark:bg-slate-700/30 rounded border border-slate-200 dark:border-slate-600">
             <div className="flex items-start gap-3">
               <div className="flex-shrink-0 w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center text-sm font-bold text-blue-600 dark:text-blue-200">
-                {stop.sequenceNumber}
+                {/* Départ (⭐, not part of plan.stops) already occupies "1",
+                    so the first real stop starts at 1 here too. */}
+                {stop.sequenceNumber - 1}
               </div>
 
               <div className="flex-1 min-w-0">
