@@ -137,6 +137,7 @@ export default function AddressForm({
   const [importError, setImportError] = useState('')
   const [importMessage, setImportMessage] = useState('')
   const [promptCopied, setPromptCopied] = useState(false)
+  const [promptVisible, setPromptVisible] = useState(false)
 
   // Validates every address at the current stopAddresses indices (assumes
   // stopStatuses already has a matching length) — shared by the mount
@@ -312,8 +313,11 @@ export default function AddressForm({
       setPromptCopied(true)
       setTimeout(() => setPromptCopied(false), 2000)
     } catch {
-      // Clipboard API unavailable/denied — the user can still select the
-      // prompt text manually if it's shown elsewhere.
+      // Clipboard API unavailable/blocked — common on mobile browsers and
+      // in-app webviews. Always reveal the fallback textarea below (see
+      // finally) so there's a working manual-copy path either way.
+    } finally {
+      setPromptVisible(true)
     }
   }, [])
 
@@ -513,6 +517,19 @@ export default function AddressForm({
             <button type="button" onClick={handleCopyPrompt} className="button-secondary text-sm">
               {promptCopied ? t('addressForm.importPromptCopied') : t('addressForm.importCopyPrompt')}
             </button>
+            {promptVisible && (
+              <div>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">
+                  {t('addressForm.importPromptFallbackHint')}
+                </p>
+                <textarea
+                  readOnly
+                  value={WEEKLY_IMPORT_PROMPT}
+                  onFocus={(e) => e.currentTarget.select()}
+                  className="input-field font-mono text-xs h-40"
+                />
+              </div>
+            )}
             <textarea
               value={importText}
               onChange={(e) => setImportText(e.target.value)}
