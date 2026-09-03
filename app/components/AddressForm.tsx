@@ -25,6 +25,9 @@ type FieldStatus = {
   error?: string
   errorCode?: string
   alternatives?: { lat: number; lon: number; displayName: string }[]
+  // Set when the typed street type (rue/avenue/route/...) didn't match
+  // anything and a substitute was found instead — see nominatim.ts.
+  correctedAddress?: string
 }
 
 const PENDING_STATUS: FieldStatus = { status: 'pending' }
@@ -60,6 +63,7 @@ async function validateSingleAddress(text: string): Promise<FieldStatus> {
       error: result.error,
       errorCode: result.errorCode,
       alternatives: result.alternatives,
+      correctedAddress: result.correctedAddress,
     }
   } catch (err) {
     return { status: 'invalid', error: err instanceof Error ? err.message : undefined }
@@ -69,11 +73,22 @@ async function validateSingleAddress(text: string): Promise<FieldStatus> {
 function FieldStatusMessage({ status, addressText }: { status: FieldStatus; addressText: string }) {
   const { t } = useLanguage()
 
+  const correctionNote = status.correctedAddress ? (
+    <p className="warning-message">
+      📝 {t('addressForm.streetTypeCorrected', { corrected: status.correctedAddress })}
+    </p>
+  ) : null
+
   if (status.status === 'geocoding') {
     return <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">{t('addressForm.statusChecking')}</p>
   }
   if (status.status === 'valid') {
-    return <p className="success-message">{t('addressForm.statusValid')}</p>
+    return (
+      <>
+        <p className="success-message">{t('addressForm.statusValid')}</p>
+        {correctionNote}
+      </>
+    )
   }
   if (status.status === 'invalid') {
     const message = translateError(t, status.errorCode, status.error, { address: addressText })
@@ -93,6 +108,7 @@ function FieldStatusMessage({ status, addressText }: { status: FieldStatus; addr
             })}
           </p>
         )}
+        {correctionNote}
       </div>
     )
   }

@@ -64,6 +64,7 @@ export const translations: Record<Locale, Record<string, string>> = {
     'addressForm.statusAmbiguousDefault':
       'Adresse ambiguë — plusieurs correspondances trouvées. Utilisation de la correspondance la plus proche.',
     'addressForm.statusDidYouMean': 'Vouliez-vous dire : {alternatives}?',
+    'addressForm.streetTypeCorrected': 'Type de voie corrigé automatiquement — adresse utilisée : {corrected}',
     'addressForm.submitGeocoding': '🔄 Géocodage des adresses...',
     'addressForm.submitCalculating': "⏳ Calcul de l'itinéraire...",
     'addressForm.submitDefault': "🚀 Optimiser l'itinéraire",
@@ -206,6 +207,7 @@ export const translations: Record<Locale, Record<string, string>> = {
     'addressForm.statusAmbiguousDefault':
       'Ambiguous address — multiple matches found. Using the closest match.',
     'addressForm.statusDidYouMean': 'Did you mean: {alternatives}?',
+    'addressForm.streetTypeCorrected': 'Street type auto-corrected — address used: {corrected}',
     'addressForm.submitGeocoding': '🔄 Geocoding Addresses...',
     'addressForm.submitCalculating': '⏳ Calculating Route...',
     'addressForm.submitDefault': '🚀 Optimize Route',
