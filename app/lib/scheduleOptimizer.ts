@@ -1,5 +1,5 @@
 import { AddressInput, ScheduleConstraints, MeasurementSchedule, DailyPlan, DailyStop, RouteResponse } from './types'
-import { daysUntilDate, isOverdue, getPriority, formatDateToISO } from './utils'
+import { daysUntilDate, isOverdue, getPriority, formatDateToISO, haversineDistanceKm } from './utils'
 
 export const DEFAULT_CONSTRAINTS: ScheduleConstraints = {
   maxStopsPerDay: 6,
@@ -8,6 +8,15 @@ export const DEFAULT_CONSTRAINTS: ScheduleConstraints = {
   balanceLoadAndDistance: true,
   allowOverdueAddresses: true,
 }
+
+// When choosing among several dates that all satisfy an address's own
+// measurement-date/deadline window, a day already visiting within this
+// radius is preferred over an emptier, more distant day — avoids sending
+// the technician back to the same far sector a couple of days apart just
+// because the earliest open slot happened to fall elsewhere. Deadlines are
+// still the hard constraint; this only breaks ties among otherwise-valid
+// days (see findBestWorkingDay).
+const SAME_SECTOR_KM = 20
 
 // The schedule only needs the start address's coordinates, so accept anything
 // that carries them (the API hands us the raw request start point).
@@ -126,7 +135,7 @@ function groupAddressesByDay(
     latestDay.setHours(0, 0, 0, 0)
 
     // Find best working day respecting capacity and deadline
-    let assignedDay = findBestWorkingDay(preferredDay, latestDay, groups, constraints, today)
+    let assignedDay = findBestWorkingDay(addr, preferredDay, latestDay, groups, constraints, today)
 
     const dayKey = formatDateToISO(assignedDay)
     if (!groups.has(dayKey)) groups.set(dayKey, [])
@@ -138,6 +147,7 @@ function groupAddressesByDay(
 }
 
 function findBestWorkingDay(
+  address: AddressInput,
   preferredDay: Date,
   latestDay: Date,
   groups: Map<string, AddressInput[]>,
@@ -150,25 +160,59 @@ function findBestWorkingDay(
   candidate.setHours(0, 0, 0, 0)
   const maxDays = 365
 
-  for (let i = 0; i < maxDays; i++) {
+  // Collect every working day with remaining capacity inside the address's
+  // own [candidate, latestDay] window (still bounded by maxDays as a safety
+  // cap), instead of returning on the first one — geography then picks
+  // among them below.
+  const validDays: Date[] = []
+  for (let i = 0; i < maxDays && candidate <= latestDay; i++) {
     const dayKey = formatDateToISO(candidate)
-
-    // Check if working day and has capacity
     if (isWorkingDay(candidate, constraints)) {
       const capacity = groups.get(dayKey)?.length ?? 0
       if (capacity < constraints.maxStopsPerDay) {
-        // Validate deadline not exceeded
-        if (candidate <= latestDay) {
-          return candidate
-        }
+        validDays.push(new Date(candidate))
       }
     }
-
     candidate.setDate(candidate.getDate() + 1)
   }
 
-  // Fallback: return latest allowed day (even if full)
-  return new Date(latestDay)
+  if (validDays.length === 0) {
+    // Fallback: no capacity anywhere in the window — return latest allowed
+    // day (even if full).
+    return new Date(latestDay)
+  }
+
+  if (!address.geocodedCoords) {
+    return validDays[0]
+  }
+
+  // Prefer whichever valid day already has a stop within SAME_SECTOR_KM;
+  // ties (including "no day is close enough") keep the earliest day, since
+  // validDays is in ascending date order and `<` only replaces on a strict
+  // improvement.
+  let best = validDays[0]
+  let bestScore = Infinity
+  for (const day of validDays) {
+    const dayAddresses = groups.get(formatDateToISO(day)) ?? []
+    const nearestKm = dayAddresses.reduce((min, other) => {
+      if (!other.geocodedCoords) return min
+      return Math.min(
+        min,
+        haversineDistanceKm(
+          address.geocodedCoords!.lat,
+          address.geocodedCoords!.lon,
+          other.geocodedCoords.lat,
+          other.geocodedCoords.lon
+        )
+      )
+    }, Infinity)
+    const score = nearestKm <= SAME_SECTOR_KM ? nearestKm : Infinity
+    if (score < bestScore) {
+      bestScore = score
+      best = day
+    }
+  }
+  return best
 }
 
 function isWorkingDay(date: Date, constraints: ScheduleConstraints): boolean {
