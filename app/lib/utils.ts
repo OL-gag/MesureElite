@@ -69,7 +69,10 @@ export function haversineDistanceKm(lat1: number, lon1: number, lat2: number, lo
   return R * c
 }
 
-const DISTANCE_OUTLIER_THRESHOLD_KM = 300
+// Lowered from 300: a real mis-geocode (Nominatim silently dropping the
+// house number/city and matching a same-named street ~220km away in a
+// different city) was going undetected under the old threshold.
+const DISTANCE_OUTLIER_THRESHOLD_KM = 215
 
 // Flags points whose nearest neighbor in the list is farther than the
 // threshold — a strong signal that an address was geocoded to the wrong
