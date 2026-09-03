@@ -24,9 +24,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       )
     }
 
-    if (body.waypoints.length > 25) {
+    // 30 stops (AddressForm's MAX_STOPS) + the start/return address
+    if (body.waypoints.length > 31) {
       return NextResponse.json(
-        { error: 'Maximum 25 waypoints allowed', errorCode: 'TOO_MANY_WAYPOINTS' },
+        { error: 'Maximum 31 waypoints allowed', errorCode: 'TOO_MANY_WAYPOINTS' },
         { status: 400 }
       )
     }

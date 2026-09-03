@@ -69,8 +69,9 @@ export async function calculateRoute(
     throw new Error('At least 2 waypoints required')
   }
 
-  if (waypoints.length > 25) {
-    throw new Error('Maximum 25 waypoints allowed')
+  // 30 stops (AddressForm's MAX_STOPS) + the start/return address
+  if (waypoints.length > 31) {
+    throw new Error('Maximum 31 waypoints allowed')
   }
 
   try {
