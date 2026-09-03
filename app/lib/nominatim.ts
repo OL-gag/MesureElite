@@ -127,14 +127,18 @@ function formatShortAddress(address: NominatimAddressDetails | undefined, fallba
   return deduped.length > 0 ? deduped.join(', ') : fallback
 }
 
-export async function geocodeAddress(address: string): Promise<{
+type GeocodeMatchResult = {
   lat: number
   lon: number
   displayName: string
   address?: NominatimAddressDetails
   importance?: number
   alternatives?: (GeocodeMatch & { displayName: string })[]
-} | null> {
+}
+
+// Single Nominatim lookup for the exact text given, with caching. No street-
+// type fallback here — see geocodeAddress for that.
+async function geocodeAddressOnce(address: string): Promise<GeocodeMatchResult | null> {
   // Check cache first
   const cache = getCache()
   if (cache[address] && isCacheValid(cache[address].timestamp)) {
@@ -195,6 +199,65 @@ export async function geocodeAddress(address: string): Promise<{
     const message = error instanceof Error ? error.message : 'Unknown error'
     throw new Error(`Nominatim geocoding failed: ${message}`)
   }
+}
+
+// Common Québec French street-type designators. Nominatim treats these as
+// distinct exact tokens (no fuzzy/synonym matching between them), so a
+// dispatcher writing "rue" for what's actually an "avenue" or "route" makes
+// the whole query fail even though the rest of the address is correct —
+// this was observed twice in the same real weekly-planning email.
+const STREET_TYPES = [
+  'rue',
+  'avenue',
+  'boulevard',
+  'route',
+  'chemin',
+  'place',
+  'promenade',
+  'allée',
+  'allee',
+  'montée',
+  'montee',
+  'rang',
+  'impasse',
+]
+
+function findStreetTypeToken(address: string): { type: string; start: number; end: number } | null {
+  const re = new RegExp(`\\b(${STREET_TYPES.join('|')})\\b`, 'i')
+  const match = re.exec(address)
+  if (!match) return null
+  return { type: match[1], start: match.index, end: match.index + match[1].length }
+}
+
+// Substitutes the detected street-type word with every other known
+// designator, keeping the rest of the address untouched.
+function buildStreetTypeVariants(address: string): string[] {
+  const found = findStreetTypeToken(address)
+  if (!found) return []
+  const lowerType = found.type.toLowerCase()
+  return STREET_TYPES.filter((t) => t !== lowerType).map(
+    (t) => address.slice(0, found.start) + t + address.slice(found.end)
+  )
+}
+
+export async function geocodeAddress(address: string): Promise<
+  (GeocodeMatchResult & {
+    // Set when the address as typed matched nothing, but substituting the
+    // street-type word found a real place — lets the caller flag the
+    // correction instead of silently hiding the typo.
+    matchedQuery?: string
+  })
+  | null
+> {
+  const direct = await geocodeAddressOnce(address)
+  if (direct) return direct
+
+  for (const variant of buildStreetTypeVariants(address)) {
+    const result = await geocodeAddressOnce(variant)
+    if (result) return { ...result, matchedQuery: variant }
+  }
+
+  return null
 }
 
 // Extracts a rough "city/region" key from a Nominatim display_name — skips
@@ -283,6 +346,7 @@ export async function geocodeMultiple(addresses: string[]): Promise<GeocodeRespo
               ? `Ambiguous address: "${address}" matched multiple distinct places. Please specify the city.`
               : undefined,
             errorCode: ambiguous ? ('AMBIGUOUS' as const) : undefined,
+            correctedAddress: result.matchedQuery,
           }
         } else {
           return {

@@ -110,6 +110,10 @@ export interface GeocodeResponse {
     }[]
     error?: string
     errorCode?: string
+    // Set when the address text as typed matched nothing, but retrying with
+    // a different street-type word (rue/avenue/route/...) found a real
+    // place — see app/lib/nominatim.ts buildStreetTypeVariants.
+    correctedAddress?: string
   }[]
   validCount: number
   invalidCount: number
