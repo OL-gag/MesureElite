@@ -5,7 +5,12 @@
 
 export interface WeeklyImportStop {
   address: string
+  // Earliest allowed day (the day header in the email) — never scheduled before it.
   measurementDate: string
+  // measurementDate + up to 3 calendar days, capped at that week's Friday —
+  // gives the scheduler room to move the visit later in the same week
+  // (e.g. to cluster it with a nearby stop) without ever slipping into the
+  // following week. See WEEKLY_IMPORT_PROMPT rule 3.
   deadlineDate: string
   reference: string
 }
@@ -55,7 +60,13 @@ INSTRUCTIONS :
 2. Si l'année n'est pas précisée dans le courriel, utilise l'année en cours. Si la date obtenue avec l'année en cours serait déjà passée de plus de 30 jours, utilise l'année suivante à la place.
 3. Pour chaque rendez-vous listé sous un jour, extrais :
    - "address" : l'adresse complète après l'icône 📍, telle quelle (avec ville et code postal si présents)
-   - "measurementDate" ET "deadlineDate" : la date du jour sous lequel le rendez-vous apparaît, au format AAAA-MM-JJ (les deux champs ont la MÊME valeur — ce sont des rendez-vous déjà fixés, pas des cibles flexibles)
+   - "measurementDate" : la date du jour sous lequel le rendez-vous apparaît, au format AAAA-MM-JJ — c'est la date la PLUS TÔT possible, jamais avant
+   - "deadlineDate" : measurementDate + 3 jours calendaires, SAUF si ça dépasse le vendredi de la même semaine — dans ce cas utilise ce vendredi à la place (jamais dans la semaine suivante). Exemples pour une semaine LUNDI-VENDREDI :
+     * LUNDI → deadlineDate = JEUDI (même semaine)
+     * MARDI → deadlineDate = VENDREDI (même semaine)
+     * MERCREDI → deadlineDate = VENDREDI (mercredi + 3 jours = samedi, donc plafonné au vendredi)
+     * JEUDI → deadlineDate = VENDREDI (plafonné)
+     * VENDREDI → deadlineDate = VENDREDI (déjà au maximum, aucune marge)
    - "reference" : un résumé compact sur une seule ligne, combinant ce qui est présent parmi : numéro de dossier (ex : #13481), nom du client, catégorie (🟨 Particulier / 🟥 Ébénisterie, ou le mot écrit en toutes lettres), pièce, matière, épaisseur, partenaire/entrepreneur, note spéciale, et le numéro de téléphone (précédé de 📞)
 4. Ignore les lignes vides, les séparateurs, et la légende des icônes en haut du courriel.
 5. Ne produis RIEN d'autre que le JSON ci-dessous — pas de texte avant ou après, pas de balises markdown (\`\`\`) :
