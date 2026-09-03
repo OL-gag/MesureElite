@@ -110,7 +110,9 @@ export default function Results() {
                 >
                   <div className="flex items-start gap-3">
                     <div className="flex-shrink-0 w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center text-sm font-bold text-blue-600 dark:text-blue-200">
-                      {waypoint.sequence}
+                      {/* Matches the map pins (RouteMap): start gets a star,
+                          not a number, so the first real stop can be "1". */}
+                      {waypoint.isStartPoint ? '⭐' : waypoint.sequence - 1}
                     </div>
                     <div className="flex-1">
                       <p className="font-semibold text-slate-900 dark:text-white">

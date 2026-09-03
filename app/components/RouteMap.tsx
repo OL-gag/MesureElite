@@ -56,7 +56,7 @@ export default function RouteMap({ route }: RouteMapProps) {
           color: white;
           background-color: ${color.bg}; border: 3px solid ${color.border};
         ">
-          ${isStart ? '⭐' : wp.sequence}
+          ${isStart ? '⭐' : wp.sequence - 1}
         </div>
       `,
       iconSize: [40, 40],
@@ -73,7 +73,7 @@ export default function RouteMap({ route }: RouteMapProps) {
         <Popup>
           <div className="text-sm">
             <strong>
-              {isStart ? t('map.startPopupPrefix') : t('map.stopPopupPrefix', { sequence: wp.sequence })}
+              {isStart ? t('map.startPopupPrefix') : t('map.stopPopupPrefix', { sequence: wp.sequence - 1 })}
             </strong>
             <p className="mb-2">{wp.displayName}</p>
             {segment && (
