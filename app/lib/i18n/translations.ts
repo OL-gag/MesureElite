@@ -39,7 +39,7 @@ export const translations: Record<Locale, Record<string, string>> = {
     // home (app/page.tsx)
     'home.title': 'Trouvez le trajet le plus court',
     'home.subtitle':
-      "Entrez une adresse de départ/retour et 2 à 20 arrêts pour obtenir le trajet optimisé. Parfait pour des mesures d'exceptions!",
+      "Entrez une adresse de départ/retour et 2 à 30 arrêts pour obtenir le trajet optimisé. Parfait pour des mesures d'exceptions!",
     'home.cardTitle': '🗺️ Optimisez votre trajet',
     'home.cardIntro': 'Entrez vos adresses ci-dessous pour calculer le trajet le plus court possible.',
 
@@ -69,7 +69,7 @@ export const translations: Record<Locale, Record<string, string>> = {
     'addressForm.submitCalculating': "⏳ Calcul de l'itinéraire...",
     'addressForm.submitDefault': "🚀 Optimiser l'itinéraire",
     'addressForm.footerHint':
-      "Entrez 1 adresse de départ/retour et 2 à 20 adresses d'arrêt. Le système trouvera la boucle la plus courte visitant toutes les adresses.",
+      "Entrez 1 adresse de départ/retour et 2 à 30 adresses d'arrêt. Le système trouvera la boucle la plus courte visitant toutes les adresses.",
     'addressForm.errorStartRequired': "Veuillez entrer l'adresse de départ/retour",
     'addressForm.errorMinStops': 'Veuillez entrer au moins {min} adresses d\'arrêt',
     'addressForm.errorGeocodingFailedGeneric': 'Échec du géocodage',
@@ -184,7 +184,7 @@ export const translations: Record<Locale, Record<string, string>> = {
     // home (app/page.tsx)
     'home.title': 'Find the Shortest Route',
     'home.subtitle':
-      'Enter a start/return address plus 2-20 stops and get the optimized route. Perfect for deliveries, road trips, or any multi-stop journey.',
+      'Enter a start/return address plus 2-30 stops and get the optimized route. Perfect for deliveries, road trips, or any multi-stop journey.',
     'home.cardTitle': '🗺️ Optimize Your Route',
     'home.cardIntro': 'Enter your addresses below to calculate the shortest possible route.',
 
@@ -212,7 +212,7 @@ export const translations: Record<Locale, Record<string, string>> = {
     'addressForm.submitCalculating': '⏳ Calculating Route...',
     'addressForm.submitDefault': '🚀 Optimize Route',
     'addressForm.footerHint':
-      'Enter 1 start/return address and 2-20 stop addresses. The system will find the shortest loop visiting all of them.',
+      'Enter 1 start/return address and 2-30 stop addresses. The system will find the shortest loop visiting all of them.',
     'addressForm.errorStartRequired': 'Please enter the start/return address',
     'addressForm.errorMinStops': 'Please enter at least {min} stop addresses',
     'addressForm.errorGeocodingFailedGeneric': 'Geocoding failed',
