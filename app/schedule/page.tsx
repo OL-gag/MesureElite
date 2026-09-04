@@ -5,33 +5,49 @@ import dynamic from 'next/dynamic'
 import { useRouter } from 'next/navigation'
 import ErrorBoundary from '@/app/components/ErrorBoundary'
 import DailyPlanCard from '@/app/components/DailyPlanCard'
-import { MeasurementSchedule, GeocodeResponse, DistanceOutlier } from '@/app/lib/types'
+import { MeasurementSchedule, GeocodeResponse, DistanceOutlier, DailyPlan, DailyStop } from '@/app/lib/types'
 import { useLanguage } from '@/app/lib/i18n/LanguageContext'
 import { translateError } from '@/app/lib/i18n/translations'
 import { formatDateToISO, formatDuration } from '@/app/lib/utils'
 
 const RouteMap = dynamic(() => import('@/app/components/RouteMap'), { ssr: false })
 
-// Dates come back from /api/schedule anchored at the server's midnight (UTC
-// on Vercel): re-anchor every calendar day at LOCAL midnight instead, so an
+// Dates come back from the API anchored at the server's midnight (UTC on
+// Vercel): re-anchor every calendar day at LOCAL midnight instead, so an
 // evening-vs-UTC offset can't shift the day shown. Shared by the initial
-// load and by handleMoveStop's regeneration.
+// load and by handleMoveStop's per-day recompute.
+function parsePlanDates(plan: any): DailyPlan {
+  return {
+    ...plan,
+    date: new Date(String(plan.date).slice(0, 10) + 'T00:00:00'),
+    stops: plan.stops.map((stop: any) => ({
+      ...stop,
+      measurements: {
+        ...stop.measurements,
+        measurementDate: new Date(String(stop.measurements.measurementDate).slice(0, 10) + 'T00:00:00'),
+        deadlineDate: new Date(String(stop.measurements.deadlineDate).slice(0, 10) + 'T00:00:00'),
+      },
+    })),
+  }
+}
+
 function parseScheduleResponse(parsed: any): MeasurementSchedule {
   return {
     ...parsed,
-    dailyPlans: parsed.dailyPlans.map((plan: any) => ({
-      ...plan,
-      date: new Date(String(plan.date).slice(0, 10) + 'T00:00:00'),
-      stops: plan.stops.map((stop: any) => ({
-        ...stop,
-        measurements: {
-          ...stop.measurements,
-          measurementDate: new Date(String(stop.measurements.measurementDate).slice(0, 10) + 'T00:00:00'),
-          deadlineDate: new Date(String(stop.measurements.deadlineDate).slice(0, 10) + 'T00:00:00'),
-        },
-      })),
-    })),
+    dailyPlans: parsed.dailyPlans.map(parsePlanDates),
     generatedAt: new Date(parsed.generatedAt),
+  }
+}
+
+function recomputeMetadata(dailyPlans: DailyPlan[]): MeasurementSchedule['metadata'] {
+  return {
+    totalDistance: dailyPlans.reduce((sum, p) => sum + p.metrics.totalDistance, 0),
+    totalDuration: dailyPlans.reduce((sum, p) => sum + p.metrics.totalDuration, 0),
+    totalAddresses: dailyPlans.reduce((sum, p) => sum + p.stops.length, 0),
+    addressesOnDeadline: dailyPlans.reduce(
+      (sum, p) => sum + p.stops.filter((s) => s.measurements.daysUntilDeadline <= 1).length,
+      0
+    ),
   }
 }
 
@@ -91,13 +107,19 @@ export default function Schedule() {
     loadSchedule()
   }, [router])
 
-  // Moves one stop to a different (already-validated) day and regenerates
-  // the whole schedule around it — simpler and more robust than an
-  // incremental per-day update, and fast enough at this batch size (see
-  // SC-005). The override only affects this regeneration; the stop's
-  // original measurementDate/deadlineDate are untouched everywhere else.
+  // Moves one stop to a different (already-validated) day — surgically:
+  // only the source day (recomputed, or dropped entirely if the moved stop
+  // was its last one) and the target day are recalculated via OSRM. Every
+  // other day's DailyPlan is left completely untouched, so a move never
+  // reshuffles stops the user didn't ask to move. The stop's own
+  // measurementDate/deadlineDate are unchanged (the target was already
+  // inside that window — that's why it was offered).
   const handleMoveStop = async (addressId: string, targetDateISO: string) => {
     if (!schedule) return
+    const sourcePlan = schedule.dailyPlans.find((p) => p.stops.some((s) => s.addressId === addressId))
+    const movedStop = sourcePlan?.stops.find((s) => s.addressId === addressId)
+    if (!sourcePlan || !movedStop) return
+
     setMoving(true)
     setMoveError('')
 
@@ -105,47 +127,66 @@ export default function Schedule() {
       const startWaypoint = schedule.dailyPlans
         .flatMap((p) => p.route?.waypoints ?? [])
         .find((wp) => wp.isStartPoint)
+      const startEntry = startWaypoint
+        ? {
+            id: 'start',
+            isStartPoint: true,
+            geocodedCoords: { lat: startWaypoint.lat, lon: startWaypoint.lon, displayName: startWaypoint.displayName },
+          }
+        : undefined
 
-      const addresses = [
-        ...(startWaypoint
-          ? [
-              {
-                id: 'start',
-                isStartPoint: true,
-                geocodedCoords: { lat: startWaypoint.lat, lon: startWaypoint.lon, displayName: startWaypoint.displayName },
-              },
-            ]
-          : []),
-        ...schedule.dailyPlans.flatMap((plan) =>
-          plan.stops.map((stop) => ({
-            id: stop.addressId,
-            isStartPoint: false,
-            text: stop.address.text,
-            geocodedCoords: { lat: stop.address.lat, lon: stop.address.lon, displayName: stop.address.displayName },
-            reference: stop.reference,
-            measurementDate:
-              stop.addressId === addressId ? targetDateISO : formatDateToISO(stop.measurements.measurementDate),
-            deadlineDate:
-              stop.addressId === addressId ? targetDateISO : formatDateToISO(stop.measurements.deadlineDate),
-          }))
-        ),
-      ]
-
-      const response = await fetch('/api/schedule', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ addresses, clientToday: formatDateToISO(new Date()), constraints: schedule.constraints }),
+      const toAddressEntry = (stop: DailyStop) => ({
+        id: stop.addressId,
+        isStartPoint: false,
+        text: stop.address.text,
+        geocodedCoords: { lat: stop.address.lat, lon: stop.address.lon, displayName: stop.address.displayName },
+        reference: stop.reference,
+        measurementDate: formatDateToISO(stop.measurements.measurementDate),
+        deadlineDate: formatDateToISO(stop.measurements.deadlineDate),
       })
 
-      if (!response.ok) {
-        setMoveError(t('schedule.moveError'))
-        return
+      const fetchDayPlan = async (dateISO: string, stops: DailyStop[]): Promise<DailyPlan> => {
+        const response = await fetch('/api/schedule/day', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            date: dateISO,
+            addresses: [...(startEntry ? [startEntry] : []), ...stops.map(toAddressEntry)],
+            constraints: schedule.constraints,
+          }),
+        })
+        if (!response.ok) throw new Error('day recompute failed')
+        const { plan } = await response.json()
+        return parsePlanDates(plan)
       }
 
-      const updated = parseScheduleResponse(await response.json())
+      const sourceDateISO = formatDateToISO(sourcePlan.date)
+      const remainingSourceStops = sourcePlan.stops.filter((s) => s.addressId !== addressId)
+      const targetPlanExisting = schedule.dailyPlans.find((p) => formatDateToISO(p.date) === targetDateISO)
+      const targetStops = [...(targetPlanExisting?.stops ?? []), movedStop]
+
+      // Source day is dropped entirely (not recomputed) once it has no
+      // stops left — nothing to route, nothing to show.
+      const newSourcePlan =
+        remainingSourceStops.length > 0 ? await fetchDayPlan(sourceDateISO, remainingSourceStops) : null
+      const newTargetPlan = await fetchDayPlan(targetDateISO, targetStops)
+
+      const untouchedPlans = schedule.dailyPlans.filter(
+        (p) => formatDateToISO(p.date) !== sourceDateISO && formatDateToISO(p.date) !== targetDateISO
+      )
+      const nextDailyPlans = [...untouchedPlans, ...(newSourcePlan ? [newSourcePlan] : []), newTargetPlan].sort(
+        (a, b) => a.date.getTime() - b.date.getTime()
+      )
+
+      const updated: MeasurementSchedule = {
+        ...schedule,
+        dailyPlans: nextDailyPlans,
+        metadata: recomputeMetadata(nextDailyPlans),
+      }
+
       setSchedule(updated)
       sessionStorage.setItem('schedule', JSON.stringify(updated))
-      setSelectedDateIndex((i) => Math.min(i, updated.dailyPlans.length - 1))
+      setSelectedDateIndex((i) => Math.min(i, nextDailyPlans.length - 1))
     } catch {
       setMoveError(t('schedule.moveError'))
     } finally {

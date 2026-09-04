@@ -136,6 +136,13 @@ export function formatDateToISO(date: Date): string {
   return `${year}-${month}-${day}`
 }
 
+// Date-only strings ('YYYY-MM-DD', the user's calendar day) are anchored at
+// local midnight so all schedule math shares one anchor; full ISO instants
+// (older clients) pass through unchanged.
+export function parseCalendarDate(value: string): Date {
+  return /^\d{4}-\d{2}-\d{2}$/.test(value) ? new Date(value + 'T00:00:00') : new Date(value)
+}
+
 export function daysUntilDate(targetDate: Date, fromDate: Date = new Date()): number {
   const target = new Date(targetDate)
   target.setHours(0, 0, 0, 0)
