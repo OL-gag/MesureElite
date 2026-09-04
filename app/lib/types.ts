@@ -155,7 +155,12 @@ export interface RouteResponse {
 // Measurement Schedule Types (US3)
 
 export interface ScheduleConstraints {
+  // Soft target: the scheduler tries to keep each day at or under this.
   maxStopsPerDay: number
+  // Hard ceiling: only exceeded past maxStopsPerDay when a deadline leaves
+  // no day within the soft target — never exceeded past this either
+  // (the schedule falls back to overloading the latest allowed day instead).
+  absoluteMaxStopsPerDay: number
   workingDays: number[]
   prioritizeDeadlines: boolean
   balanceLoadAndDistance: boolean

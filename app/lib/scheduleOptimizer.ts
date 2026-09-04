@@ -2,7 +2,8 @@ import { AddressInput, ScheduleConstraints, MeasurementSchedule, DailyPlan, Dail
 import { daysUntilDate, isOverdue, getPriority, formatDateToISO, haversineDistanceKm } from './utils'
 
 export const DEFAULT_CONSTRAINTS: ScheduleConstraints = {
-  maxStopsPerDay: 6,
+  maxStopsPerDay: 5,
+  absoluteMaxStopsPerDay: 6,
   workingDays: [1, 2, 3, 4, 5], // Mon-Fri
   prioritizeDeadlines: true,
   balanceLoadAndDistance: true,
@@ -156,63 +157,73 @@ function findBestWorkingDay(
 ): Date {
   // IMPORTANT: preferredDay is the measurement date — must not be scheduled BEFORE it
   // Start from preferred day (or today if preferred is in past, since we can't measure in past)
-  let candidate = new Date(Math.max(preferredDay.getTime(), today.getTime()))
-  candidate.setHours(0, 0, 0, 0)
-  const maxDays = 365
+  const windowStart = new Date(Math.max(preferredDay.getTime(), today.getTime()))
+  windowStart.setHours(0, 0, 0, 0)
 
-  // Collect every working day with remaining capacity inside the address's
-  // own [candidate, latestDay] window (still bounded by maxDays as a safety
-  // cap), instead of returning on the first one — geography then picks
-  // among them below.
-  const validDays: Date[] = []
-  for (let i = 0; i < maxDays && candidate <= latestDay; i++) {
-    const dayKey = formatDateToISO(candidate)
-    if (isWorkingDay(candidate, constraints)) {
-      const capacity = groups.get(dayKey)?.length ?? 0
-      if (capacity < constraints.maxStopsPerDay) {
-        validDays.push(new Date(candidate))
+  // Every working day inside [windowStart, latestDay] whose current load is
+  // under capacityLimit — geography then picks among them below instead of
+  // just taking the earliest.
+  const collectValidDays = (capacityLimit: number): Date[] => {
+    const days: Date[] = []
+    const candidate = new Date(windowStart)
+    const maxDays = 365
+    for (let i = 0; i < maxDays && candidate <= latestDay; i++) {
+      const dayKey = formatDateToISO(candidate)
+      if (isWorkingDay(candidate, constraints)) {
+        const capacity = groups.get(dayKey)?.length ?? 0
+        if (capacity < capacityLimit) {
+          days.push(new Date(candidate))
+        }
+      }
+      candidate.setDate(candidate.getDate() + 1)
+    }
+    return days
+  }
+
+  // Prefer whichever candidate day already has a stop within SAME_SECTOR_KM;
+  // ties (including "no day is close enough") keep the earliest day, since
+  // `days` is in ascending date order and `<` only replaces on a strict
+  // improvement.
+  const pickBest = (days: Date[]): Date => {
+    if (!address.geocodedCoords) return days[0]
+    let best = days[0]
+    let bestScore = Infinity
+    for (const day of days) {
+      const dayAddresses = groups.get(formatDateToISO(day)) ?? []
+      const nearestKm = dayAddresses.reduce((min, other) => {
+        if (!other.geocodedCoords) return min
+        return Math.min(
+          min,
+          haversineDistanceKm(
+            address.geocodedCoords!.lat,
+            address.geocodedCoords!.lon,
+            other.geocodedCoords.lat,
+            other.geocodedCoords.lon
+          )
+        )
+      }, Infinity)
+      const score = nearestKm <= SAME_SECTOR_KM ? nearestKm : Infinity
+      if (score < bestScore) {
+        bestScore = score
+        best = day
       }
     }
-    candidate.setDate(candidate.getDate() + 1)
+    return best
   }
 
-  if (validDays.length === 0) {
-    // Fallback: no capacity anywhere in the window — return latest allowed
-    // day (even if full).
-    return new Date(latestDay)
-  }
+  // Pass 1: keep the day at or under the soft target (5 by default).
+  const softDays = collectValidDays(constraints.maxStopsPerDay)
+  if (softDays.length > 0) return pickBest(softDays)
 
-  if (!address.geocodedCoords) {
-    return validDays[0]
-  }
+  // Pass 2: the soft target leaves no valid day in the window — allow up to
+  // the absolute ceiling (6) instead, since the deadline still has to be met.
+  const hardDays = collectValidDays(constraints.absoluteMaxStopsPerDay)
+  if (hardDays.length > 0) return pickBest(hardDays)
 
-  // Prefer whichever valid day already has a stop within SAME_SECTOR_KM;
-  // ties (including "no day is close enough") keep the earliest day, since
-  // validDays is in ascending date order and `<` only replaces on a strict
-  // improvement.
-  let best = validDays[0]
-  let bestScore = Infinity
-  for (const day of validDays) {
-    const dayAddresses = groups.get(formatDateToISO(day)) ?? []
-    const nearestKm = dayAddresses.reduce((min, other) => {
-      if (!other.geocodedCoords) return min
-      return Math.min(
-        min,
-        haversineDistanceKm(
-          address.geocodedCoords!.lat,
-          address.geocodedCoords!.lon,
-          other.geocodedCoords.lat,
-          other.geocodedCoords.lon
-        )
-      )
-    }, Infinity)
-    const score = nearestKm <= SAME_SECTOR_KM ? nearestKm : Infinity
-    if (score < bestScore) {
-      bestScore = score
-      best = day
-    }
-  }
-  return best
+  // Last resort: no capacity anywhere in the window even at the ceiling —
+  // return latest allowed day (even if it ends up further overloaded), since
+  // the deadline must still be respected above all else.
+  return new Date(latestDay)
 }
 
 function isWorkingDay(date: Date, constraints: ScheduleConstraints): boolean {
@@ -294,10 +305,13 @@ function createDailyPlan(
       totalDistance: route.route.totalDistance,
       totalDuration: route.route.totalDuration,
       stopCount: stops.length,
-      feasible: stops.length <= constraints.maxStopsPerDay,
+      // The scheduler itself is allowed to go past maxStopsPerDay up to the
+      // absolute ceiling when a deadline forces it (see findBestWorkingDay),
+      // so that's the bar for genuinely "infeasible", not the soft target.
+      feasible: stops.length <= constraints.absoluteMaxStopsPerDay,
     },
     constraints: {
-      maxStops: constraints.maxStopsPerDay,
+      maxStops: constraints.absoluteMaxStopsPerDay,
     },
   }
 }
@@ -410,10 +424,10 @@ function createDailyPlanWithoutOptimization(
       totalDistance: 0,
       totalDuration: 0,
       stopCount: stops.length,
-      feasible: stops.length <= constraints.maxStopsPerDay,
+      feasible: stops.length <= constraints.absoluteMaxStopsPerDay,
     },
     constraints: {
-      maxStops: constraints.maxStopsPerDay,
+      maxStops: constraints.absoluteMaxStopsPerDay,
     },
   }
 }

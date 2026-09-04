@@ -271,7 +271,11 @@ export default function Schedule() {
             {t('schedule.constraints')}
           </h3>
           <ul className="text-sm text-slate-600 dark:text-slate-400 space-y-1">
-            <li>• {t('schedule.maxStopsPerDay')}: {schedule.constraints.maxStopsPerDay}</li>
+            <li>
+              • {t('schedule.maxStopsPerDay')}: {schedule.constraints.maxStopsPerDay}
+              {schedule.constraints.absoluteMaxStopsPerDay > schedule.constraints.maxStopsPerDay &&
+                ` ${t('schedule.upToIfNeeded', { max: schedule.constraints.absoluteMaxStopsPerDay })}`}
+            </li>
             <li>
               • {t('schedule.workingDays')}:{' '}
               {schedule.constraints.workingDays
