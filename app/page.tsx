@@ -55,14 +55,29 @@ export default function Home() {
     }
   })
 
+  // Remembers the last daily-capacity setting so it doesn't need re-entering
+  // every time either.
+  const [initialMaxStopsPerDay] = useState<number | undefined>(() => {
+    if (typeof window === 'undefined') return undefined
+    try {
+      const raw = sessionStorage.getItem('maxStopsPerDay')
+      const value = raw ? parseInt(raw, 10) : NaN
+      return Number.isInteger(value) && value > 0 ? value : undefined
+    } catch {
+      return undefined
+    }
+  })
+
   const handleFormSubmit = async (
     addresses: AddressInput[],
     geocodeResults: GeocodeResponse,
-    outliers: DistanceOutlier[]
+    outliers: DistanceOutlier[],
+    maxStopsPerDay: number
   ) => {
     setLoading(true)
 
     sessionStorage.setItem('addressTexts', JSON.stringify(addresses.map((a) => a.text)))
+    sessionStorage.setItem('maxStopsPerDay', String(maxStopsPerDay))
     // Always overwrite (even when empty) so a warning from a previous
     // submission never lingers on the next one.
     sessionStorage.setItem('addressOutliers', JSON.stringify(outliers))
@@ -134,6 +149,12 @@ export default function Home() {
               deadlineDate: a.deadlineDate ? formatDateToISO(a.deadlineDate) : undefined,
             })),
             clientToday: formatDateToISO(new Date()),
+            // Soft target from the form; the ceiling (one more, only used
+            // when a deadline leaves no other choice) is derived from it.
+            constraints: {
+              maxStopsPerDay,
+              absoluteMaxStopsPerDay: maxStopsPerDay + 1,
+            },
           }),
         })
 
@@ -208,6 +229,7 @@ export default function Home() {
               initialMeasurementDates={initialDates?.measurement.slice(1)}
               initialDeadlineDates={initialDates?.deadline.slice(1)}
               initialReferences={initialDates?.reference.slice(1)}
+              initialMaxStopsPerDay={initialMaxStopsPerDay}
             />
           </div>
         </section>

@@ -79,6 +79,8 @@ export const translations: Record<Locale, Record<string, string>> = {
     // measurement dates (US1 & US2)
     'addressForm.measurementDateLabel': 'Date de mesure',
     'addressForm.deadlineDateLabel': 'Date limite',
+    'addressForm.maxStopsPerDayLabel': 'Arrêts max par jour',
+    'addressForm.maxStopsPerDayHint': '(jusqu\'à {max} si une date limite l\'exige)',
 
     // weekly planning JSON import (see app/lib/weeklyImport.ts)
     'addressForm.importToggle': 'Importer une liste (JSON)',
@@ -223,6 +225,8 @@ export const translations: Record<Locale, Record<string, string>> = {
     // measurement dates (US1 & US2)
     'addressForm.measurementDateLabel': 'Measurement Date',
     'addressForm.deadlineDateLabel': 'Deadline Date',
+    'addressForm.maxStopsPerDayLabel': 'Max stops per day',
+    'addressForm.maxStopsPerDayHint': '(up to {max} if a deadline requires it)',
 
     // weekly planning JSON import (see app/lib/weeklyImport.ts)
     'addressForm.importToggle': 'Import a list (JSON)',

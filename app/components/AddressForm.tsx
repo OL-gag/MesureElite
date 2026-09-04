@@ -8,16 +8,25 @@ import { useLanguage } from '@/app/lib/i18n/LanguageContext'
 import { translateError } from '@/app/lib/i18n/translations'
 
 interface AddressFormProps {
-  onSubmit: (addresses: AddressInput[], geocodeResults: GeocodeResponse, outliers: DistanceOutlier[]) => void
+  onSubmit: (
+    addresses: AddressInput[],
+    geocodeResults: GeocodeResponse,
+    outliers: DistanceOutlier[],
+    maxStopsPerDay: number
+  ) => void
   loading?: boolean
   initialStartAddress?: string
   initialStopAddresses?: string[]
   initialMeasurementDates?: (string | undefined)[]
   initialDeadlineDates?: (string | undefined)[]
   initialReferences?: (string | undefined)[]
+  initialMaxStopsPerDay?: number
 }
 
 const MAX_STOPS = 30
+const DEFAULT_MAX_STOPS_PER_DAY = 5
+const MIN_MAX_STOPS_PER_DAY = 1
+const MAX_MAX_STOPS_PER_DAY = 15
 const MIN_VALID_STOPS = 2
 
 type FieldStatus = {
@@ -123,12 +132,14 @@ export default function AddressForm({
   initialMeasurementDates,
   initialDeadlineDates,
   initialReferences,
+  initialMaxStopsPerDay,
 }: AddressFormProps) {
   const { t } = useLanguage()
   const todayISO = formatDateToISO(new Date())
 
   const [startAddress, setStartAddress] = useState(initialStartAddress)
   const [startStatus, setStartStatus] = useState<FieldStatus>(PENDING_STATUS)
+  const [maxStopsPerDay, setMaxStopsPerDay] = useState(initialMaxStopsPerDay ?? DEFAULT_MAX_STOPS_PER_DAY)
 
   const initialStops = initialStopAddresses && initialStopAddresses.length > 0 ? initialStopAddresses : ['', '']
   const [stopAddresses, setStopAddresses] = useState<string[]>(initialStops)
@@ -485,14 +496,14 @@ export default function AddressForm({
           }
         })
 
-        onSubmit(addressInputs, geocodeResults, outliers)
+        onSubmit(addressInputs, geocodeResults, outliers, maxStopsPerDay)
       } catch (err) {
         setFormError(t('addressForm.errorSubmitFailed'))
       } finally {
         setGeocoding(false)
       }
     },
-    [startAddress, stopAddresses, stopMeasurementDates, stopDeadlineDates, stopReferences, onSubmit, t]
+    [startAddress, stopAddresses, stopMeasurementDates, stopDeadlineDates, stopReferences, maxStopsPerDay, onSubmit, t]
   )
 
   const isBusy = geocoding || loading
@@ -514,6 +525,31 @@ export default function AddressForm({
           disabled={isBusy}
         />
         <FieldStatusMessage status={startStatus} addressText={startAddress} />
+      </div>
+
+      {/* Daily capacity: soft target the scheduler aims for (it may go one
+          stop over when a deadline leaves no other choice). */}
+      <div className="flex items-center gap-3">
+        <label htmlFor="maxStopsPerDay" className="text-sm font-medium text-slate-700 dark:text-slate-300">
+          {t('addressForm.maxStopsPerDayLabel')}
+        </label>
+        <input
+          id="maxStopsPerDay"
+          type="number"
+          min={MIN_MAX_STOPS_PER_DAY}
+          max={MAX_MAX_STOPS_PER_DAY}
+          value={maxStopsPerDay}
+          onChange={(e) => {
+            const value = parseInt(e.target.value, 10)
+            if (Number.isNaN(value)) return
+            setMaxStopsPerDay(Math.min(MAX_MAX_STOPS_PER_DAY, Math.max(MIN_MAX_STOPS_PER_DAY, value)))
+          }}
+          className="input-field w-20"
+          disabled={isBusy}
+        />
+        <span className="text-xs text-slate-500 dark:text-slate-400">
+          {t('addressForm.maxStopsPerDayHint', { max: maxStopsPerDay + 1 })}
+        </span>
       </div>
 
       {/* Weekly-planning JSON import — see app/lib/weeklyImport.ts */}
