@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import dynamic from 'next/dynamic'
 import { useRouter } from 'next/navigation'
 import ErrorBoundary from '@/app/components/ErrorBoundary'
@@ -63,6 +63,38 @@ export default function Schedule() {
   const [outliers, setOutliers] = useState<DistanceOutlier[]>([])
   const [moving, setMoving] = useState(false)
   const [moveError, setMoveError] = useState('')
+  const dayCardRefs = useRef<Record<string, HTMLDivElement | null>>({})
+  const mapSectionRef = useRef<HTMLElement>(null)
+  const didMountRef = useRef(false)
+
+  // Brings the selected day's card into view just below the sticky map
+  // whenever the selection changes (filter click, mobile chip, or a card's
+  // own header) — skips the very first render so the page doesn't jump on
+  // load. Measures the map section's actual height (varies with
+  // mapVisible/screen size) instead of a fixed offset, so the card always
+  // lands fully clear of it rather than partly hidden underneath.
+  useEffect(() => {
+    if (!didMountRef.current) {
+      didMountRef.current = true
+      return
+    }
+    const plan = schedule?.dailyPlans[selectedDateIndex]
+    const card = plan && dayCardRefs.current[plan.id]
+    if (!card) return
+    // Wait a frame for the just-remounted map (key={plan.id}) to finish its
+    // layout pass before measuring its height — measuring too early
+    // (mid-Leaflet-init) under-scrolls and leaves the card hidden below it.
+    // scroll-margin-top (rather than a manually computed window.scrollTo
+    // target) lets the browser itself compute the final scroll position, so
+    // it can't drift from a stale scrollY/rect snapshot taken mid-animation
+    // when the previous selection is still scrolling when this one fires.
+    const raf = requestAnimationFrame(() => {
+      const mapHeight = mapSectionRef.current?.offsetHeight ?? 0
+      card.style.scrollMarginTop = `${mapHeight + 16}px`
+      card.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    })
+    return () => cancelAnimationFrame(raf)
+  }, [selectedDateIndex, schedule])
 
   useEffect(() => {
     const loadSchedule = async () => {
@@ -291,8 +323,14 @@ export default function Schedule() {
           </section>
         )}
 
-        {/* General map with day filter (US4: one day at a time, FR-020/021/022/024) */}
-        <section className="space-y-3">
+        {/* General map with day filter (US4: one day at a time, FR-020/021/022/024).
+            Sticky so the map stays visible while auto-scrolling to a day's
+            card below (see the selectedDateIndex effect). */}
+        <section
+          ref={mapSectionRef}
+          className="sticky top-0 z-10 bg-slate-50 dark:bg-slate-900 pb-3 space-y-3 shadow-sm"
+          style={{ overflowAnchor: 'none' }}
+        >
           <div className="flex justify-between items-center">
             <h3 className="font-semibold text-slate-900 dark:text-white">
               {t('results.mapHeading')}
@@ -328,7 +366,7 @@ export default function Schedule() {
               </div>
 
               {/* Map: shows only the selected day's round-trip route */}
-              <div className="flex-1 card bg-slate-100 dark:bg-slate-800 flex items-center justify-center min-h-[400px] relative">
+              <div className="flex-1 card bg-slate-100 dark:bg-slate-800 flex items-center justify-center min-h-[220px] relative">
                 {(() => {
                   const plan = schedule.dailyPlans[selectedDateIndex]
                   // Every plan (optimized or fallback) carries its round-trip
@@ -345,6 +383,11 @@ export default function Schedule() {
                       // Remount per day so the map re-fits its bounds to the
                       // newly selected day's full route (FR-024).
                       key={plan.id}
+                      // Shorter than the default: this map is inside a sticky
+                      // section (see auto-scroll effect above) — the default
+                      // height alone can exceed the viewport, leaving no room
+                      // for the day card the page scrolls to underneath it.
+                      heightClassName="h-[220px] sm:h-[260px]"
                       route={{
                         ...plan.route,
                         addressListId: 'schedule',
@@ -364,15 +407,16 @@ export default function Schedule() {
             selects it on the map and in the filter (FR-025) */}
         <section className="space-y-4">
           {schedule.dailyPlans.map((plan, idx) => (
-            <DailyPlanCard
-              key={plan.id}
-              plan={plan}
-              selected={selectedDateIndex === idx}
-              onSelect={() => setSelectedDateIndex(idx)}
-              workingDays={schedule.constraints.workingDays}
-              onMoveStop={handleMoveStop}
-              moving={moving}
-            />
+            <div key={plan.id} ref={(el) => { dayCardRefs.current[plan.id] = el }}>
+              <DailyPlanCard
+                plan={plan}
+                selected={selectedDateIndex === idx}
+                onSelect={() => setSelectedDateIndex(idx)}
+                workingDays={schedule.constraints.workingDays}
+                onMoveStop={handleMoveStop}
+                moving={moving}
+              />
+            </div>
           ))}
         </section>
 
