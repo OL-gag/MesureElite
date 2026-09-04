@@ -9,13 +9,7 @@ import 'leaflet/dist/leaflet.css'
 
 interface RouteMapProps {
   route: Route
-  // Overrides the default height classes. The schedule page uses a shorter
-  // map so the sticky map+filter bar doesn't itself exceed the viewport
-  // height, leaving no room for the auto-scrolled-to day card below it.
-  heightClassName?: string
 }
-
-const DEFAULT_HEIGHT_CLASSNAME = 'h-[28rem] sm:h-[32rem] lg:h-[36rem]'
 
 // Cycles blue → green → brown across stops/segments so each leg of the route
 // is visually distinguishable on the map, especially where the path crosses
@@ -30,7 +24,7 @@ function colorForSequence(sequence: number) {
   return SEGMENT_COLORS[(sequence - 1) % SEGMENT_COLORS.length]
 }
 
-export default function RouteMap({ route, heightClassName = DEFAULT_HEIGHT_CLASSNAME }: RouteMapProps) {
+export default function RouteMap({ route }: RouteMapProps) {
   const { t } = useLanguage()
   const mapRef = useRef<any>(null)
 
@@ -118,7 +112,7 @@ export default function RouteMap({ route, heightClassName = DEFAULT_HEIGHT_CLASS
   const bounds = boundsArray.length > 0 ? L.latLngBounds(boundsArray) : L.latLngBounds([[45.5, -73.5], [45.6, -73.4]])
 
   return (
-    <div className={`w-full ${heightClassName} rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700`}>
+    <div className="w-full h-[28rem] sm:h-[32rem] lg:h-[36rem] rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700">
       <MapContainer
         ref={mapRef}
         bounds={bounds}
