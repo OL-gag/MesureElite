@@ -42,10 +42,21 @@ export async function generateMeasurementSchedule(
     throw new Error('No addresses with valid dates and coordinates')
   }
 
-  // Sort by deadline urgency (copy: don't reorder the caller's array)
-  const sorted = [...validAddresses].sort(
-    (a, b) => a.deadlineDate!.getTime() - b.deadlineDate!.getTime()
-  )
+  // Sort by deadline urgency, then — for stops sharing a deadline — by how
+  // little flexibility each one has (narrowest measurementDate→deadlineDate
+  // window first). Without this, a flexible stop processed before a rigid,
+  // forced-to-one-day stop in the same sector picks an arbitrary empty day
+  // (nothing yet anchors it there), and the forced stop then lands alone on
+  // its own day later — two separate trips to the same area instead of one.
+  // Processing the rigid stop first gives the flexible one something to
+  // cluster onto (copy: don't reorder the caller's array).
+  const sorted = [...validAddresses].sort((a, b) => {
+    const deadlineDiff = a.deadlineDate!.getTime() - b.deadlineDate!.getTime()
+    if (deadlineDiff !== 0) return deadlineDiff
+    const windowA = a.deadlineDate!.getTime() - a.measurementDate!.getTime()
+    const windowB = b.deadlineDate!.getTime() - b.measurementDate!.getTime()
+    return windowA - windowB
+  })
 
   // Group addresses into days (intelligent deadline-aware grouping)
   const dailyGroups = groupAddressesByDay(sorted, constraints, today)
