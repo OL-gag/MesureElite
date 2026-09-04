@@ -1,7 +1,14 @@
 'use client'
 
 import { DailyPlan } from '@/app/lib/types'
-import { formatDistance, formatDuration, formatDateToISO, buildGoogleMapsUrl, buildAppleMapsUrl } from '@/app/lib/utils'
+import {
+  formatDistance,
+  formatDuration,
+  formatDateToISO,
+  buildGoogleMapsUrl,
+  buildAppleMapsUrl,
+  getWorkingDaysInRange,
+} from '@/app/lib/utils'
 import { useLanguage } from '@/app/lib/i18n/LanguageContext'
 
 interface DailyPlanCardProps {
@@ -10,9 +17,21 @@ interface DailyPlanCardProps {
   // schedule map (kept in sync with the day filter — FR-025).
   selected?: boolean
   onSelect?: () => void
+  // Working days from the schedule's constraints — used to compute which
+  // other days a stop could legally move to. Omit to hide the "move" picker.
+  workingDays?: number[]
+  onMoveStop?: (addressId: string, targetDateISO: string) => void
+  moving?: boolean
 }
 
-export default function DailyPlanCard({ plan, selected = false, onSelect }: DailyPlanCardProps) {
+export default function DailyPlanCard({
+  plan,
+  selected = false,
+  onSelect,
+  workingDays,
+  onMoveStop,
+  moving = false,
+}: DailyPlanCardProps) {
   const { t, locale } = useLanguage()
   const dateStr = formatDateToISO(plan.date)
   const dayOfWeek = plan.date.toLocaleDateString(locale, { weekday: 'long' })
@@ -86,36 +105,64 @@ export default function DailyPlanCard({ plan, selected = false, onSelect }: Dail
           </div>
         )}
 
-        {plan.stops.map((stop) => (
-          <div key={stop.id} className="p-3 bg-slate-50 dark:bg-slate-700/30 rounded border border-slate-200 dark:border-slate-600">
-            <div className="flex items-start gap-3">
-              <div className="flex-shrink-0 w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center text-sm font-bold text-blue-600 dark:text-blue-200">
-                {/* Départ (⭐, not part of plan.stops) already occupies "1",
-                    so the first real stop starts at 1 here too. */}
-                {stop.sequenceNumber - 1}
-              </div>
+        {plan.stops.map((stop) => {
+          // Every working day in this stop's own window, excluding the day
+          // it's already on — the only days a move can legally land on.
+          const moveTargets =
+            onMoveStop && workingDays
+              ? getWorkingDaysInRange(stop.measurements.measurementDate, stop.measurements.deadlineDate, workingDays)
+                  .filter((d) => formatDateToISO(d) !== formatDateToISO(plan.date))
+              : []
 
-              <div className="flex-1 min-w-0">
-                <p className="font-semibold text-slate-900 dark:text-white">{stop.address.displayName}</p>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">{stop.address.text}</p>
+          return (
+            <div key={stop.id} className="p-3 bg-slate-50 dark:bg-slate-700/30 rounded border border-slate-200 dark:border-slate-600">
+              <div className="flex items-start gap-3">
+                <div className="flex-shrink-0 w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center text-sm font-bold text-blue-600 dark:text-blue-200">
+                  {/* Départ (⭐, not part of plan.stops) already occupies "1",
+                      so the first real stop starts at 1 here too. */}
+                  {stop.sequenceNumber - 1}
+                </div>
 
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                  📅 {t('addressForm.measurementDateLabel')}: {formatDateToISO(stop.measurements.measurementDate)}{' '}
-                  • ⏰ {t('addressForm.deadlineDateLabel')}: {formatDateToISO(stop.measurements.deadlineDate)}
-                </p>
-                {stop.reference && (
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">📝 {stop.reference}</p>
-                )}
-                {stop.distanceFromPrevious !== undefined && (
-                  <div className="flex items-center gap-4 mt-2 text-sm text-slate-600 dark:text-slate-400">
-                    <span>→ {formatDistance(stop.distanceFromPrevious)}</span>
-                    <span>{formatDuration(stop.durationFromPrevious || 0)}</span>
-                  </div>
-                )}
+                <div className="flex-1 min-w-0">
+                  <p className="font-semibold text-slate-900 dark:text-white">{stop.address.displayName}</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">{stop.address.text}</p>
+
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                    📅 {t('addressForm.measurementDateLabel')}: {formatDateToISO(stop.measurements.measurementDate)}{' '}
+                    • ⏰ {t('addressForm.deadlineDateLabel')}: {formatDateToISO(stop.measurements.deadlineDate)}
+                  </p>
+                  {stop.reference && (
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">📝 {stop.reference}</p>
+                  )}
+                  {stop.distanceFromPrevious !== undefined && (
+                    <div className="flex items-center gap-4 mt-2 text-sm text-slate-600 dark:text-slate-400">
+                      <span>→ {formatDistance(stop.distanceFromPrevious)}</span>
+                      <span>{formatDuration(stop.durationFromPrevious || 0)}</span>
+                    </div>
+                  )}
+                  {onMoveStop && moveTargets.length > 0 && (
+                    <select
+                      value=""
+                      disabled={moving}
+                      onClick={(e) => e.stopPropagation()}
+                      onChange={(e) => {
+                        if (e.target.value) onMoveStop(stop.addressId, e.target.value)
+                      }}
+                      className="input-field mt-2 text-xs py-1"
+                    >
+                      <option value="">{t('schedule.moveToDay')}</option>
+                      {moveTargets.map((d) => (
+                        <option key={formatDateToISO(d)} value={formatDateToISO(d)}>
+                          {d.toLocaleDateString(locale, { weekday: 'long' })} {formatDateToISO(d)}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                </div>
               </div>
             </div>
-          </div>
-        ))}
+          )
+        })}
 
         {startWaypoint && (
           <div className="p-3 bg-green-50 dark:bg-green-900/20 rounded border border-green-200 dark:border-green-700">
