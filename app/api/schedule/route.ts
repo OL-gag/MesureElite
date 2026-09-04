@@ -58,7 +58,26 @@ export async function POST(request: NextRequest) {
         ? parseDateInput(clientToday)
         : undefined
 
-    const scheduleConstraints: ScheduleConstraints = constraints || DEFAULT_CONSTRAINTS
+    // Merge (not replace) so the client only needs to send the fields it
+    // actually wants to override — currently just the daily stop capacity.
+    const scheduleConstraints: ScheduleConstraints = { ...DEFAULT_CONSTRAINTS, ...constraints }
+
+    // Sanity-clamp a client-supplied capacity: must be a positive integer,
+    // and the absolute ceiling must be at least the soft target.
+    if (
+      typeof scheduleConstraints.maxStopsPerDay !== 'number' ||
+      !Number.isInteger(scheduleConstraints.maxStopsPerDay) ||
+      scheduleConstraints.maxStopsPerDay < 1
+    ) {
+      scheduleConstraints.maxStopsPerDay = DEFAULT_CONSTRAINTS.maxStopsPerDay
+    }
+    if (
+      typeof scheduleConstraints.absoluteMaxStopsPerDay !== 'number' ||
+      !Number.isInteger(scheduleConstraints.absoluteMaxStopsPerDay) ||
+      scheduleConstraints.absoluteMaxStopsPerDay < scheduleConstraints.maxStopsPerDay
+    ) {
+      scheduleConstraints.absoluteMaxStopsPerDay = scheduleConstraints.maxStopsPerDay + 1
+    }
 
     // Route each day via OSRM directly (calling our own /api/route over HTTP
     // fails behind Vercel preview protection). calculateRoute closes the loop
