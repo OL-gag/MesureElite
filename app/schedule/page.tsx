@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import dynamic from 'next/dynamic'
 import { useRouter } from 'next/navigation'
 import ErrorBoundary from '@/app/components/ErrorBoundary'
@@ -63,25 +63,6 @@ export default function Schedule() {
   const [outliers, setOutliers] = useState<DistanceOutlier[]>([])
   const [moving, setMoving] = useState(false)
   const [moveError, setMoveError] = useState('')
-  const dayCardRefs = useRef<Record<string, HTMLDivElement | null>>({})
-  const didMountRef = useRef(false)
-
-  // Brings the selected day's card into view whenever the selection changes
-  // (filter click, mobile chip, or a card's own header) — skips the very
-  // first render so the page doesn't jump on load. The map is back to its
-  // full (non-sticky) size, so it scrolls out of view like any other
-  // content above the card — the small top margin is just breathing room.
-  useEffect(() => {
-    if (!didMountRef.current) {
-      didMountRef.current = true
-      return
-    }
-    const plan = schedule?.dailyPlans[selectedDateIndex]
-    const card = plan && dayCardRefs.current[plan.id]
-    if (!card) return
-    card.style.scrollMarginTop = '16px'
-    card.scrollIntoView({ behavior: 'smooth', block: 'start' })
-  }, [selectedDateIndex, schedule])
 
   useEffect(() => {
     const loadSchedule = async () => {
@@ -383,16 +364,15 @@ export default function Schedule() {
             selects it on the map and in the filter (FR-025) */}
         <section className="space-y-4">
           {schedule.dailyPlans.map((plan, idx) => (
-            <div key={plan.id} ref={(el) => { dayCardRefs.current[plan.id] = el }}>
-              <DailyPlanCard
-                plan={plan}
-                selected={selectedDateIndex === idx}
-                onSelect={() => setSelectedDateIndex(idx)}
-                workingDays={schedule.constraints.workingDays}
-                onMoveStop={handleMoveStop}
-                moving={moving}
-              />
-            </div>
+            <DailyPlanCard
+              key={plan.id}
+              plan={plan}
+              selected={selectedDateIndex === idx}
+              onSelect={() => setSelectedDateIndex(idx)}
+              workingDays={schedule.constraints.workingDays}
+              onMoveStop={handleMoveStop}
+              moving={moving}
+            />
           ))}
         </section>
 
