@@ -138,6 +138,8 @@ export const translations: Record<Locale, Record<string, string>> = {
     'schedule.hideMap': 'Masquer la carte',
     'schedule.showMap': 'Afficher la carte',
     'schedule.daysFilter': 'Journées',
+    'schedule.moveToDay': '↔ Déplacer vers...',
+    'schedule.moveError': "Échec du déplacement — l'horaire n'a pas été modifié.",
     'schedule.openInGoogleMaps': 'Ouvrir dans Google Maps',
     'schedule.openInAppleMaps': 'Ouvrir dans Apple Plans',
     'schedule.invalidAddressesWarning':
@@ -283,6 +285,8 @@ export const translations: Record<Locale, Record<string, string>> = {
     'schedule.hideMap': 'Hide map',
     'schedule.showMap': 'Show map',
     'schedule.daysFilter': 'Days',
+    'schedule.moveToDay': '↔ Move to...',
+    'schedule.moveError': 'Failed to move the stop — the schedule was not changed.',
     'schedule.openInGoogleMaps': 'Open in Google Maps',
     'schedule.openInAppleMaps': 'Open in Apple Maps',
     'schedule.invalidAddressesWarning':

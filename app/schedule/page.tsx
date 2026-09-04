@@ -12,6 +12,29 @@ import { formatDateToISO, formatDuration } from '@/app/lib/utils'
 
 const RouteMap = dynamic(() => import('@/app/components/RouteMap'), { ssr: false })
 
+// Dates come back from /api/schedule anchored at the server's midnight (UTC
+// on Vercel): re-anchor every calendar day at LOCAL midnight instead, so an
+// evening-vs-UTC offset can't shift the day shown. Shared by the initial
+// load and by handleMoveStop's regeneration.
+function parseScheduleResponse(parsed: any): MeasurementSchedule {
+  return {
+    ...parsed,
+    dailyPlans: parsed.dailyPlans.map((plan: any) => ({
+      ...plan,
+      date: new Date(String(plan.date).slice(0, 10) + 'T00:00:00'),
+      stops: plan.stops.map((stop: any) => ({
+        ...stop,
+        measurements: {
+          ...stop.measurements,
+          measurementDate: new Date(String(stop.measurements.measurementDate).slice(0, 10) + 'T00:00:00'),
+          deadlineDate: new Date(String(stop.measurements.deadlineDate).slice(0, 10) + 'T00:00:00'),
+        },
+      })),
+    })),
+    generatedAt: new Date(parsed.generatedAt),
+  }
+}
+
 export default function Schedule() {
   const router = useRouter()
   const { t, locale } = useLanguage()
@@ -22,6 +45,8 @@ export default function Schedule() {
   const [mapVisible, setMapVisible] = useState(true)
   const [geocodeResults, setGeocodeResults] = useState<GeocodeResponse | null>(null)
   const [outliers, setOutliers] = useState<DistanceOutlier[]>([])
+  const [moving, setMoving] = useState(false)
+  const [moveError, setMoveError] = useState('')
 
   useEffect(() => {
     const loadSchedule = async () => {
@@ -50,29 +75,7 @@ export default function Schedule() {
         // Load schedule from sessionStorage
         const storedSchedule = sessionStorage.getItem('schedule')
         if (storedSchedule) {
-          const parsed = JSON.parse(storedSchedule)
-          // Parse dates back to Date objects. Plan dates were anchored at the
-          // server's midnight (UTC on Vercel): re-anchor the calendar day at
-          // LOCAL midnight so evening-vs-UTC offsets can't shift the day shown.
-          const withDates = {
-            ...parsed,
-            dailyPlans: parsed.dailyPlans.map((plan: any) => ({
-              ...plan,
-              date: new Date(String(plan.date).slice(0, 10) + 'T00:00:00'),
-              stops: plan.stops.map((stop: any) => ({
-                ...stop,
-                measurements: {
-                  ...stop.measurements,
-                  // Same local re-anchoring as plan.date: these are calendar
-                  // days serialized from the server's midnight.
-                  measurementDate: new Date(String(stop.measurements.measurementDate).slice(0, 10) + 'T00:00:00'),
-                  deadlineDate: new Date(String(stop.measurements.deadlineDate).slice(0, 10) + 'T00:00:00'),
-                },
-              })),
-            })),
-            generatedAt: new Date(parsed.generatedAt),
-          }
-          setSchedule(withDates)
+          setSchedule(parseScheduleResponse(JSON.parse(storedSchedule)))
           setLoading(false)
           return
         }
@@ -87,6 +90,68 @@ export default function Schedule() {
 
     loadSchedule()
   }, [router])
+
+  // Moves one stop to a different (already-validated) day and regenerates
+  // the whole schedule around it — simpler and more robust than an
+  // incremental per-day update, and fast enough at this batch size (see
+  // SC-005). The override only affects this regeneration; the stop's
+  // original measurementDate/deadlineDate are untouched everywhere else.
+  const handleMoveStop = async (addressId: string, targetDateISO: string) => {
+    if (!schedule) return
+    setMoving(true)
+    setMoveError('')
+
+    try {
+      const startWaypoint = schedule.dailyPlans
+        .flatMap((p) => p.route?.waypoints ?? [])
+        .find((wp) => wp.isStartPoint)
+
+      const addresses = [
+        ...(startWaypoint
+          ? [
+              {
+                id: 'start',
+                isStartPoint: true,
+                geocodedCoords: { lat: startWaypoint.lat, lon: startWaypoint.lon, displayName: startWaypoint.displayName },
+              },
+            ]
+          : []),
+        ...schedule.dailyPlans.flatMap((plan) =>
+          plan.stops.map((stop) => ({
+            id: stop.addressId,
+            isStartPoint: false,
+            text: stop.address.text,
+            geocodedCoords: { lat: stop.address.lat, lon: stop.address.lon, displayName: stop.address.displayName },
+            reference: stop.reference,
+            measurementDate:
+              stop.addressId === addressId ? targetDateISO : formatDateToISO(stop.measurements.measurementDate),
+            deadlineDate:
+              stop.addressId === addressId ? targetDateISO : formatDateToISO(stop.measurements.deadlineDate),
+          }))
+        ),
+      ]
+
+      const response = await fetch('/api/schedule', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ addresses, clientToday: formatDateToISO(new Date()), constraints: schedule.constraints }),
+      })
+
+      if (!response.ok) {
+        setMoveError(t('schedule.moveError'))
+        return
+      }
+
+      const updated = parseScheduleResponse(await response.json())
+      setSchedule(updated)
+      sessionStorage.setItem('schedule', JSON.stringify(updated))
+      setSelectedDateIndex((i) => Math.min(i, updated.dailyPlans.length - 1))
+    } catch {
+      setMoveError(t('schedule.moveError'))
+    } finally {
+      setMoving(false)
+    }
+  }
 
   if (loading) {
     return <div className="text-center py-12">{t('results.loading')}</div>
@@ -252,6 +317,8 @@ export default function Schedule() {
           )}
         </section>
 
+        {moveError && <p className="error-message">{moveError}</p>}
+
         {/* All days, always fully expanded (FR-023); clicking a day's header
             selects it on the map and in the filter (FR-025) */}
         <section className="space-y-4">
@@ -261,6 +328,9 @@ export default function Schedule() {
               plan={plan}
               selected={selectedDateIndex === idx}
               onSelect={() => setSelectedDateIndex(idx)}
+              workingDays={schedule.constraints.workingDays}
+              onMoveStop={handleMoveStop}
+              moving={moving}
             />
           ))}
         </section>

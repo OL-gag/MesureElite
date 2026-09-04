@@ -157,3 +157,23 @@ export function getPriority(deadlineDate: Date, asOf: Date = new Date()): 'urgen
   if (daysUntilDeadline <= 7) return 'normal'
   return 'flexible'
 }
+
+// Every working day in [start, end] (inclusive), per ISO weekday numbers
+// (1=Monday..7=Sunday) — used to offer valid "move to..." day choices for a
+// stop within its own measurementDate/deadlineDate window.
+export function getWorkingDaysInRange(start: Date, end: Date, workingDays: number[]): Date[] {
+  const days: Date[] = []
+  const candidate = new Date(start)
+  candidate.setHours(0, 0, 0, 0)
+  const last = new Date(end)
+  last.setHours(0, 0, 0, 0)
+  for (let i = 0; i < 365 && candidate <= last; i++) {
+    const dayOfWeek = candidate.getDay()
+    const isoDay = dayOfWeek === 0 ? 7 : dayOfWeek
+    if (workingDays.includes(isoDay)) {
+      days.push(new Date(candidate))
+    }
+    candidate.setDate(candidate.getDate() + 1)
+  }
+  return days
+}
