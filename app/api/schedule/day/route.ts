@@ -1,24 +1,29 @@
+// POST /api/schedule/day
+// Recomputes ONE day's optimized plan for a fixed stop list — used when
+// moving a stop between days on /schedule: only the source and target days
+// are recomputed here, every other already-built DailyPlan is left
+// completely untouched (see app/schedule/page.tsx handleMoveStop).
+
 import { NextRequest, NextResponse } from 'next/server'
 import { AddressInput, ApiErrorBody } from '@/app/lib/types'
-import { generateMeasurementSchedule, mergeConstraints } from '@/app/lib/scheduleOptimizer'
+import { regenerateDayPlan, mergeConstraints } from '@/app/lib/scheduleOptimizer'
 import { calculateRoute } from '@/app/lib/osrm'
 import { parseCalendarDate } from '@/app/lib/utils'
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { addresses, constraints, clientToday } = body
+    const { addresses, date, constraints } = body
 
-    // Validate input
+    if (typeof date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      const error: ApiErrorBody = { error: 'A date (YYYY-MM-DD) is required', errorCode: 'INVALID_ADDRESS_FORMAT' }
+      return NextResponse.json(error, { status: 400 })
+    }
     if (!Array.isArray(addresses) || addresses.length === 0) {
-      const error: ApiErrorBody = {
-        error: 'At least 1 address with dates is required',
-        errorCode: 'EMPTY_ADDRESSES',
-      }
+      const error: ApiErrorBody = { error: 'At least 1 stop with dates is required', errorCode: 'EMPTY_ADDRESSES' }
       return NextResponse.json(error, { status: 400 })
     }
 
-    // Extract start point and stops with valid dates/coordinates
     const startPoint = addresses.find((a: any) => a.isStartPoint)
     const validAddresses = addresses.filter(
       (a: any) =>
@@ -38,26 +43,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(error, { status: 400 })
     }
 
-    // Parse dates (calendar-day strings from the client, or ISO instants)
     const parsedAddresses: AddressInput[] = validAddresses.map((a: any) => ({
       ...a,
       measurementDate: parseCalendarDate(a.measurementDate),
       deadlineDate: parseCalendarDate(a.deadlineDate),
     }))
 
-    // "Today" from the client's calendar when provided — the server clock runs
-    // in UTC and would otherwise schedule evening submissions a day late.
-    const today =
-      typeof clientToday === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(clientToday)
-        ? parseCalendarDate(clientToday)
-        : undefined
-
     const scheduleConstraints = mergeConstraints(constraints)
 
-    // Route each day via OSRM directly (calling our own /api/route over HTTP
-    // fails behind Vercel preview protection). calculateRoute closes the loop
-    // back to the first waypoint (the start address) by itself. On failure we
-    // throw so the schedule optimizer falls back to an unoptimized plan.
     const osrmOptimizer = async (
       waypoints: Array<{ id: string; lat: number; lon: number; displayName: string }>
     ) => {
@@ -68,19 +61,12 @@ export async function POST(request: NextRequest) {
       return { route }
     }
 
-    // Generate schedule with the start point for round-trip routes
-    const schedule = await generateMeasurementSchedule(
-      parsedAddresses,
-      scheduleConstraints,
-      osrmOptimizer,
-      startPoint,
-      today
-    )
+    const plan = await regenerateDayPlan(date, parsedAddresses, scheduleConstraints, osrmOptimizer, startPoint)
 
-    return NextResponse.json(schedule, { status: 200 })
+    return NextResponse.json({ plan }, { status: 200 })
   } catch (err) {
     const error: ApiErrorBody = {
-      error: err instanceof Error ? err.message : 'Schedule generation failed',
+      error: err instanceof Error ? err.message : 'Day recalculation failed',
       errorCode: 'SCHEDULE_GENERATION_FAILED',
     }
     return NextResponse.json(error, { status: 500 })

@@ -25,6 +25,31 @@ export interface ScheduleStartPoint {
   geocodedCoords?: { lat: number; lon: number; displayName: string }
 }
 
+// Merges a client-supplied (partial, possibly malformed) constraints object
+// onto DEFAULT_CONSTRAINTS — callers only need to send the fields they're
+// actually overriding — with a sanity clamp on the two capacity fields
+// (positive integers, ceiling >= target) falling back to defaults otherwise.
+export function mergeConstraints(partial?: Partial<ScheduleConstraints> | null): ScheduleConstraints {
+  const merged: ScheduleConstraints = { ...DEFAULT_CONSTRAINTS, ...partial }
+
+  if (
+    typeof merged.maxStopsPerDay !== 'number' ||
+    !Number.isInteger(merged.maxStopsPerDay) ||
+    merged.maxStopsPerDay < 1
+  ) {
+    merged.maxStopsPerDay = DEFAULT_CONSTRAINTS.maxStopsPerDay
+  }
+  if (
+    typeof merged.absoluteMaxStopsPerDay !== 'number' ||
+    !Number.isInteger(merged.absoluteMaxStopsPerDay) ||
+    merged.absoluteMaxStopsPerDay < merged.maxStopsPerDay
+  ) {
+    merged.absoluteMaxStopsPerDay = merged.maxStopsPerDay + 1
+  }
+
+  return merged
+}
+
 // Main: Generate optimized schedule. `today` is the client's calendar day —
 // the server clock may be in a different timezone than the user.
 export async function generateMeasurementSchedule(
@@ -64,38 +89,7 @@ export async function generateMeasurementSchedule(
   // Optimize routes for each day via OSRM
   const dailyPlans: DailyPlan[] = []
   for (const [dayDate, addrsForDay] of dailyGroups) {
-    // Send start + stops only: calculateRoute closes the loop back to the
-    // first waypoint itself (and appends a synthetic isEndPoint waypoint),
-    // so adding the start again here would double the return leg.
-    const hasStart = !!startPoint?.geocodedCoords
-    const waypoints: Array<{ id: string; lat: number; lon: number; displayName: string }> = []
-    if (startPoint?.geocodedCoords) {
-      waypoints.push({
-        id: 'start',
-        lat: startPoint.geocodedCoords.lat,
-        lon: startPoint.geocodedCoords.lon,
-        displayName: startPoint.geocodedCoords.displayName,
-      })
-    }
-    waypoints.push(
-      ...addrsForDay.map((a) => ({
-        id: a.id,
-        lat: a.geocodedCoords!.lat,
-        lon: a.geocodedCoords!.lon,
-        displayName: a.geocodedCoords!.displayName,
-      }))
-    )
-
-    try {
-      const route = await osrmOptimizer(waypoints)
-      const plan = createDailyPlan(dayDate, addrsForDay, route, constraints, hasStart)
-      dailyPlans.push(plan)
-    } catch (err) {
-      console.error(`Failed to optimize route for ${dayDate}:`, err)
-      // Create plan without optimization
-      const plan = createDailyPlanWithoutOptimization(dayDate, addrsForDay, constraints, startPoint)
-      dailyPlans.push(plan)
-    }
+    dailyPlans.push(await regenerateDayPlan(dayDate, addrsForDay, constraints, osrmOptimizer, startPoint))
   }
 
   // Optional: Load balancing (future enhancement)
@@ -127,6 +121,51 @@ export async function generateMeasurementSchedule(
         0
       ),
     },
+  }
+}
+
+// Builds one day's optimized plan (try OSRM, fall back to an unoptimized
+// straight-line plan on failure) — shared by generateMeasurementSchedule's
+// per-day loop and by a standalone single-day recompute (e.g. moving one
+// stop to another day: only the two affected days need to call this, every
+// other day's already-built DailyPlan is left completely untouched).
+export async function regenerateDayPlan(
+  dayDate: string,
+  addrsForDay: AddressInput[],
+  constraints: ScheduleConstraints,
+  osrmOptimizer: (
+    waypoints: Array<{ id: string; lat: number; lon: number; displayName: string }>
+  ) => Promise<RouteResponse>,
+  startPoint?: ScheduleStartPoint
+): Promise<DailyPlan> {
+  // Send start + stops only: calculateRoute closes the loop back to the
+  // first waypoint itself (and appends a synthetic isEndPoint waypoint),
+  // so adding the start again here would double the return leg.
+  const hasStart = !!startPoint?.geocodedCoords
+  const waypoints: Array<{ id: string; lat: number; lon: number; displayName: string }> = []
+  if (startPoint?.geocodedCoords) {
+    waypoints.push({
+      id: 'start',
+      lat: startPoint.geocodedCoords.lat,
+      lon: startPoint.geocodedCoords.lon,
+      displayName: startPoint.geocodedCoords.displayName,
+    })
+  }
+  waypoints.push(
+    ...addrsForDay.map((a) => ({
+      id: a.id,
+      lat: a.geocodedCoords!.lat,
+      lon: a.geocodedCoords!.lon,
+      displayName: a.geocodedCoords!.displayName,
+    }))
+  )
+
+  try {
+    const route = await osrmOptimizer(waypoints)
+    return createDailyPlan(dayDate, addrsForDay, route, constraints, hasStart)
+  } catch (err) {
+    console.error(`Failed to optimize route for ${dayDate}:`, err)
+    return createDailyPlanWithoutOptimization(dayDate, addrsForDay, constraints, startPoint)
   }
 }
 
