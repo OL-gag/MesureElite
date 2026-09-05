@@ -5,6 +5,24 @@ import { RouteResponse } from './types'
 
 const OSRM_BASE_URL = process.env.NEXT_PUBLIC_OSRM_BASE_URL || 'https://router.project-osrm.org'
 
+// The public OSRM demo server's "car" profile doesn't declare any excludable
+// classes (its `exclude=ferry` request is rejected outright with
+// "Exclude flag combination is not supported"), so a ferry crossing can't be
+// banned via the API. This business always drives — never the boat — so any
+// leg OSRM routes via ferry gets re-fetched through this fixed via-point on
+// Pont Pierre-Laporte, the road bridge across the St. Lawrence in Québec
+// City, forcing a land-only path instead. Only fixes the Québec–Lévis
+// ferry (the one this business — based in Québec City — can actually hit);
+// a different ferry elsewhere would need its own bridge via-point.
+const NO_FERRY_VIA_POINT = { lat: 46.7450865, lon: -71.2904607 }
+
+interface OSRMStep {
+  mode: string
+  distance: number
+  duration: number
+  geometry: { type: 'LineString'; coordinates: [number, number][] }
+}
+
 interface OSRMTripResponse {
   code: string
   trips: Array<{
@@ -15,9 +33,7 @@ interface OSRMTripResponse {
       distance: number
       duration: number
       summary: string
-      steps: Array<{
-        geometry: { type: 'LineString'; coordinates: [number, number][] }
-      }>
+      steps: OSRMStep[]
     }>
   }>
   // One entry per INPUT coordinate; waypoint_index is its position in the
@@ -29,6 +45,40 @@ interface OSRMTripResponse {
     name: string
     location: [number, number]
   }>
+}
+
+interface OSRMRouteResponse {
+  code: string
+  routes: Array<{
+    distance: number
+    duration: number
+    legs: Array<{ distance: number; duration: number; steps: OSRMStep[] }>
+  }>
+}
+
+// Re-fetches one leg of the trip via the bridge, forcing a land-only path
+// around the Québec–Lévis ferry. Returns null (leave the ferry leg as-is) on
+// any failure — a rare edge case shouldn't break the whole route.
+async function rerouteAvoidingFerry(
+  from: { lat: number; lon: number },
+  to: { lat: number; lon: number }
+): Promise<{ distance: number; duration: number; geometry: [number, number][] } | null> {
+  try {
+    const coords = [from, NO_FERRY_VIA_POINT, to].map((p) => `${p.lon},${p.lat}`).join(';')
+    const url = `${OSRM_BASE_URL}/route/v1/car/${coords}?overview=false&geometries=geojson&steps=true`
+    const response = await fetchWithRetry(url)
+    const data = (await response.json().catch(() => null)) as OSRMRouteResponse | null
+    if (!data || data.code !== 'Ok' || !data.routes?.[0]) return null
+
+    const route = data.routes[0]
+    return {
+      distance: route.distance,
+      duration: route.duration,
+      geometry: route.legs.flatMap((leg) => leg.steps.flatMap((step) => step.geometry.coordinates)),
+    }
+  } catch {
+    return null
+  }
 }
 
 async function fetchWithRetry(url: string, maxRetries = 3): Promise<Response> {
@@ -85,6 +135,8 @@ export async function calculateRoute(
     // optimal visiting order for a round trip anchored at the first waypoint
     // (source=first&roundtrip=true also computes the final "last stop → start"
     // leg). The route service would only follow the input order.
+    // (No `exclude=ferry` here — the public demo server's car profile doesn't
+    // support it; ferry legs are detected and rerouted below instead.)
     const url = `${OSRM_BASE_URL}/trip/v1/car/${coordinates}?source=first&roundtrip=true&overview=full&geometries=geojson&steps=true`
 
     const response = await fetchWithRetry(url)
@@ -124,12 +176,6 @@ export async function calculateRoute(
     }
 
     const trip = osrmData.trips[0]
-    const totalDistance = trip.distance
-    const totalDuration = trip.duration
-    const optimizationGain = originalDistances.total > 0
-      ? ((originalDistances.total - totalDistance) / originalDistances.total) * 100
-      : 0
-
     const routeId = `route-${Date.now()}`
 
     // Reorder the input waypoints into OSRM's optimized visiting order:
@@ -151,17 +197,33 @@ export async function calculateRoute(
     // road-following path per segment (OSRM's top-level geometry is one
     // combined line for the whole trip and doesn't expose per-leg boundaries,
     // so this is built from the steps instead — needed to color each segment
-    // individually on the map).
-    const segments = trip.legs.map((leg, index) => ({
-      id: `seg-${index}`,
-      routeId,
-      fromWaypoint: ordered[index].id,
-      toWaypoint: ordered[(index + 1) % ordered.length].id,
-      sequence: index + 1,
-      distance: leg.distance,
-      duration: leg.duration,
-      geometry: leg.steps.flatMap((step) => step.geometry.coordinates),
-    }))
+    // individually on the map). Any leg OSRM routed via ferry is rerouted
+    // around it (see rerouteAvoidingFerry) before the segment is built.
+    const segments = await Promise.all(
+      trip.legs.map(async (leg, index) => {
+        const usesFerry = leg.steps.some((step) => step.mode === 'ferry')
+        const fixed = usesFerry
+          ? await rerouteAvoidingFerry(ordered[index], ordered[(index + 1) % ordered.length])
+          : null
+
+        return {
+          id: `seg-${index}`,
+          routeId,
+          fromWaypoint: ordered[index].id,
+          toWaypoint: ordered[(index + 1) % ordered.length].id,
+          sequence: index + 1,
+          distance: fixed ? fixed.distance : leg.distance,
+          duration: fixed ? fixed.duration : leg.duration,
+          geometry: fixed ? fixed.geometry : leg.steps.flatMap((step) => step.geometry.coordinates),
+        }
+      })
+    )
+
+    const totalDistance = segments.reduce((sum, seg) => sum + seg.distance, 0)
+    const totalDuration = segments.reduce((sum, seg) => sum + seg.duration, 0)
+    const optimizationGain = originalDistances.total > 0
+      ? ((originalDistances.total - totalDistance) / originalDistances.total) * 100
+      : 0
 
     // Create waypoints array in the optimized visiting order
     const resultWaypoints = ordered.map((wp, index) => ({
