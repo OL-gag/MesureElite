@@ -1,5 +1,6 @@
 'use client'
 
+import dynamic from 'next/dynamic'
 import { DailyPlan } from '@/app/lib/types'
 import {
   formatDistance,
@@ -11,12 +12,14 @@ import {
 } from '@/app/lib/utils'
 import { useLanguage } from '@/app/lib/i18n/LanguageContext'
 
+const RouteMap = dynamic(() => import('@/app/components/RouteMap'), { ssr: false })
+
 interface DailyPlanCardProps {
   plan: DailyPlan
-  // When provided, the card header is clickable and selects this day on the
-  // schedule map (kept in sync with the day filter — FR-025).
-  selected?: boolean
-  onSelect?: () => void
+  // Renders this day's own map above the itinerary when true. Each day
+  // keeps its own map (no single shared map to switch between) — the day
+  // filter above just jumps here via #day-<date> anchor links.
+  mapVisible?: boolean
   // Working days from the schedule's constraints — used to compute which
   // other days a stop could legally move to. Omit to hide the "move" picker.
   workingDays?: number[]
@@ -26,8 +29,7 @@ interface DailyPlanCardProps {
 
 export default function DailyPlanCard({
   plan,
-  selected = false,
-  onSelect,
+  mapVisible = false,
   workingDays,
   onMoveStop,
   moving = false,
@@ -52,14 +54,8 @@ export default function DailyPlanCard({
     : undefined
 
   return (
-    <div className={`card space-y-4 ${selected ? 'ring-2 ring-blue-500 dark:ring-blue-400' : ''}`}>
-      <div
-        onClick={onSelect}
-        role={onSelect ? 'button' : undefined}
-        tabIndex={onSelect ? 0 : undefined}
-        onKeyDown={onSelect ? (e) => (e.key === 'Enter' || e.key === ' ') && onSelect() : undefined}
-        className={onSelect ? 'cursor-pointer select-none' : undefined}
-      >
+    <div id={`day-${dateStr}`} className="card space-y-4 scroll-mt-4">
+      <div>
         <h3 className="text-xl font-bold text-slate-900 dark:text-white">
           📅 {dayOfWeek.toUpperCase()} {dateStr}
         </h3>
@@ -68,6 +64,10 @@ export default function DailyPlanCard({
           {formatDistance(plan.metrics.totalDistance)} • {formatDuration(plan.metrics.totalDuration)}
         </p>
       </div>
+
+      {mapVisible && plan.route && (
+        <RouteMap route={{ ...plan.route, addressListId: 'schedule', calculatedAt: new Date() }} />
+      )}
 
       {orderedPoints && (
         <div className="flex gap-3 text-sm">
