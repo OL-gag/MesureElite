@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import dynamic from 'next/dynamic'
 import { useRouter } from 'next/navigation'
 import ErrorBoundary from '@/app/components/ErrorBoundary'
 import DailyPlanCard from '@/app/components/DailyPlanCard'
@@ -9,8 +8,6 @@ import { MeasurementSchedule, GeocodeResponse, DistanceOutlier, DailyPlan, Daily
 import { useLanguage } from '@/app/lib/i18n/LanguageContext'
 import { translateError } from '@/app/lib/i18n/translations'
 import { formatDateToISO, formatDuration } from '@/app/lib/utils'
-
-const RouteMap = dynamic(() => import('@/app/components/RouteMap'), { ssr: false })
 
 // Dates come back from the API anchored at the server's midnight (UTC on
 // Vercel): re-anchor every calendar day at LOCAL midnight instead, so an
@@ -57,7 +54,6 @@ export default function Schedule() {
   const [schedule, setSchedule] = useState<MeasurementSchedule | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string>('')
-  const [selectedDateIndex, setSelectedDateIndex] = useState(0)
   const [mapVisible, setMapVisible] = useState(true)
   const [geocodeResults, setGeocodeResults] = useState<GeocodeResponse | null>(null)
   const [outliers, setOutliers] = useState<DistanceOutlier[]>([])
@@ -186,7 +182,6 @@ export default function Schedule() {
 
       setSchedule(updated)
       sessionStorage.setItem('schedule', JSON.stringify(updated))
-      setSelectedDateIndex((i) => Math.min(i, nextDailyPlans.length - 1))
     } catch {
       setMoveError(t('schedule.moveError'))
     } finally {
@@ -291,84 +286,41 @@ export default function Schedule() {
           </section>
         )}
 
-        {/* General map with day filter (US4: one day at a time, FR-020/021/022/024) */}
+        {/* Day filter: anchor links that jump straight to each day's own
+            section below (each day keeps its own map + itinerary) */}
         <section className="space-y-3">
           <div className="flex justify-between items-center">
-            <h3 className="font-semibold text-slate-900 dark:text-white">
-              {t('results.mapHeading')}
-            </h3>
+            <p className="text-sm font-medium text-slate-600 dark:text-slate-400">
+              {t('schedule.daysFilter')}
+            </p>
             <button onClick={() => setMapVisible((v) => !v)} className="button-secondary text-sm">
               {mapVisible ? t('schedule.hideMap') : t('schedule.showMap')}
             </button>
           </div>
-
-          {mapVisible && (
-            <div className="flex flex-col lg:flex-row gap-4">
-              {/* Day filter: horizontal scrollable chips on mobile, side panel on desktop */}
-              <div className="lg:w-56 shrink-0">
-                <p className="hidden lg:block text-sm font-medium text-slate-600 dark:text-slate-400 mb-2">
-                  {t('schedule.daysFilter')}
-                </p>
-                <div className="flex lg:flex-col gap-2 overflow-x-auto lg:overflow-visible pb-2 lg:pb-0">
-                  {schedule.dailyPlans.map((plan, idx) => (
-                    <button
-                      key={plan.id}
-                      onClick={() => setSelectedDateIndex(idx)}
-                      className={`px-3 py-2 rounded-lg border text-sm font-medium whitespace-nowrap text-left transition-colors ${
-                        selectedDateIndex === idx
-                          ? 'bg-blue-600 border-blue-600 text-white'
-                          : 'border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:border-blue-400 hover:text-blue-600 dark:hover:text-blue-400'
-                      }`}
-                    >
-                      📅 {plan.date.toLocaleDateString(locale, { weekday: 'short' })}{' '}
-                      {formatDateToISO(plan.date)}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Map: shows only the selected day's round-trip route */}
-              <div className="flex-1 card bg-slate-100 dark:bg-slate-800 flex items-center justify-center min-h-[400px] relative">
-                {(() => {
-                  const plan = schedule.dailyPlans[selectedDateIndex]
-                  // Every plan (optimized or fallback) carries its round-trip
-                  // route — render it exactly like the results page does.
-                  if (!plan?.route || plan.route.waypoints.length === 0) {
-                    return (
-                      <div className="text-center text-slate-500 dark:text-slate-400">
-                        ⚠️ {t('schedule.noStops')}
-                      </div>
-                    )
-                  }
-                  return (
-                    <RouteMap
-                      // Remount per day so the map re-fits its bounds to the
-                      // newly selected day's full route (FR-024).
-                      key={plan.id}
-                      route={{
-                        ...plan.route,
-                        addressListId: 'schedule',
-                        calculatedAt: new Date(),
-                      }}
-                    />
-                  )
-                })()}
-              </div>
-            </div>
-          )}
+          <div className="flex flex-wrap gap-2">
+            {schedule.dailyPlans.map((plan) => (
+              <a
+                key={plan.id}
+                href={`#day-${formatDateToISO(plan.date)}`}
+                className="px-3 py-2 rounded-lg border text-sm font-medium whitespace-nowrap border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:border-blue-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+              >
+                📅 {plan.date.toLocaleDateString(locale, { weekday: 'short' })}{' '}
+                {formatDateToISO(plan.date)}
+              </a>
+            ))}
+          </div>
         </section>
 
         {moveError && <p className="error-message">{moveError}</p>}
 
-        {/* All days, always fully expanded (FR-023); clicking a day's header
-            selects it on the map and in the filter (FR-025) */}
+        {/* All days, always fully expanded (FR-023); each keeps its own map
+            (when mapVisible) directly above its itinerary */}
         <section className="space-y-4">
-          {schedule.dailyPlans.map((plan, idx) => (
+          {schedule.dailyPlans.map((plan) => (
             <DailyPlanCard
               key={plan.id}
               plan={plan}
-              selected={selectedDateIndex === idx}
-              onSelect={() => setSelectedDateIndex(idx)}
+              mapVisible={mapVisible}
               workingDays={schedule.constraints.workingDays}
               onMoveStop={handleMoveStop}
               moving={moving}
