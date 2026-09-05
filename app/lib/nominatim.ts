@@ -252,9 +252,25 @@ export async function geocodeAddress(address: string): Promise<
   const direct = await geocodeAddressOnce(address)
   if (direct) return direct
 
-  for (const variant of buildStreetTypeVariants(address)) {
-    const result = await geocodeAddressOnce(variant)
-    if (result) return { ...result, matchedQuery: variant }
+  // Try every street-type substitution (rue/avenue/boulevard/...) in
+  // parallel rather than one at a time: with up to 12 variants, a
+  // sequential loop can take 10+ seconds against the public Nominatim
+  // server when the address genuinely doesn't match anything — enough to
+  // hit Vercel's serverless function timeout and surface as a generic
+  // "geocoding failed" error. Racing them keeps the worst case bounded by
+  // the slowest single request instead of their sum.
+  const variants = buildStreetTypeVariants(address)
+  const attempts = await Promise.allSettled(
+    variants.map(async (variant) => {
+      const result = await geocodeAddressOnce(variant)
+      if (!result) throw new Error('no match')
+      return { ...result, matchedQuery: variant }
+    })
+  )
+  // Preserve variants' order (first street-type substitution wins) even
+  // though the requests themselves ran concurrently.
+  for (const attempt of attempts) {
+    if (attempt.status === 'fulfilled') return attempt.value
   }
 
   return null
