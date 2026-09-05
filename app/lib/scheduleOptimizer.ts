@@ -19,16 +19,25 @@ export const DEFAULT_CONSTRAINTS: ScheduleConstraints = {
 // days (see findBestWorkingDay).
 const SAME_SECTOR_KM = 20
 
-// Two real points on the St. Lawrence's course through Québec City: Pont
-// Pierre-Laporte (the road bridge — see NO_FERRY_VIA_POINT in osrm.ts) and
-// the midpoint of the old Québec-Lévis ferry crossing. A straight-line
-// "same sector" check (below) can't tell a Lévis/south-shore address from a
-// Québec-side one just across the water — they can be under 20km apart as
-// the crow flies while a real trip between them requires a bridge detour.
-// Used to keep pickBest from treating those as neighbors just because
-// they're geographically close on the map.
+// Two points approximating the St. Lawrence's course through Québec City:
+// Pont Pierre-Laporte (the road bridge — see NO_FERRY_VIA_POINT in osrm.ts)
+// and a point east of the old ferry crossing, past where Lévis's Lauzon
+// sector sits opposite Québec's Beauport shore (the river keeps bending
+// north-east there — a line anchored only at the ferry crossing itself
+// misclassifies Lauzon, further east, as north shore). A straight-line
+// "same sector" check (below) can't otherwise tell a Lévis/south-shore
+// address from a Québec-side one just across the water — they can be
+// under 20km apart as the crow flies while a real trip between them
+// requires a bridge detour. Used to keep pickBest from treating those as
+// neighbors just because they're geographically close on the map.
+// Verified against every address in a real reported case (Sainte-Foy,
+// Cap-Rouge, L'Ancienne-Lorette, Lac-Saint-Charles and Sainte-Anne-de-
+// Beaupré as north shore; Lauzon, Saint-Étienne-de-Lauzon, Saint-Isidore
+// and Saint-Anselme as south shore) — still only an approximation, and
+// extrapolates less reliably far outside that span (e.g. well past
+// Sainte-Anne-de-Beaupré or upriver past Portneuf).
 const RIVER_ANCHOR_A = { lat: 46.745, lon: -71.29 }
-const RIVER_ANCHOR_B = { lat: 46.804, lon: -71.189 }
+const RIVER_ANCHOR_B = { lat: 46.84, lon: -71.16 }
 
 // Sign of the cross product of (RIVER_ANCHOR_B - RIVER_ANCHOR_A) and
 // (point - RIVER_ANCHOR_A): positive on the north shore (Québec City side),
@@ -110,7 +119,7 @@ export async function generateMeasurementSchedule(
   })
 
   // Group addresses into days (intelligent deadline-aware grouping)
-  const dailyGroups = groupAddressesByDay(sorted, constraints, today)
+  const dailyGroups = groupAddressesByDay(sorted, constraints, today, startPoint)
 
   // Optimize routes for each day via OSRM
   const dailyPlans: DailyPlan[] = []
@@ -199,7 +208,8 @@ export async function regenerateDayPlan(
 function groupAddressesByDay(
   addresses: AddressInput[],
   constraints: ScheduleConstraints,
-  clientToday?: Date
+  clientToday?: Date,
+  startPoint?: ScheduleStartPoint
 ): Map<string, AddressInput[]> {
   const groups = new Map<string, AddressInput[]>()
   const today = clientToday ? new Date(clientToday) : new Date()
@@ -212,7 +222,7 @@ function groupAddressesByDay(
     latestDay.setHours(0, 0, 0, 0)
 
     // Find best working day respecting capacity and deadline
-    let assignedDay = findBestWorkingDay(addr, preferredDay, latestDay, groups, constraints, today)
+    let assignedDay = findBestWorkingDay(addr, preferredDay, latestDay, groups, constraints, today, startPoint)
 
     const dayKey = formatDateToISO(assignedDay)
     if (!groups.has(dayKey)) groups.set(dayKey, [])
@@ -229,12 +239,24 @@ function findBestWorkingDay(
   latestDay: Date,
   groups: Map<string, AddressInput[]>,
   constraints: ScheduleConstraints,
-  today: Date
+  today: Date,
+  startPoint?: ScheduleStartPoint
 ): Date {
   // IMPORTANT: preferredDay is the measurement date — must not be scheduled BEFORE it
   // Start from preferred day (or today if preferred is in past, since we can't measure in past)
   const windowStart = new Date(Math.max(preferredDay.getTime(), today.getTime()))
   windowStart.setHours(0, 0, 0, 0)
+
+  // Whether this stop sits on the opposite shore from the start address —
+  // i.e. visiting it already pays for a bridge crossing no matter which day
+  // it lands on. Once that crossing is happening, consolidating with
+  // ANOTHER opposite-shore stop the same day is worth it even past the
+  // usual SAME_SECTOR_KM radius: the crossing itself, not the last handful
+  // of km on that shore, is the dominant cost (see bestMatch below).
+  const requiresCrossing =
+    !!startPoint?.geocodedCoords &&
+    !!address.geocodedCoords &&
+    !sameRiverShore(startPoint.geocodedCoords, address.geocodedCoords)
 
   // Every working day inside [windowStart, latestDay] whose current load is
   // under capacityLimit — geography then picks among them below instead of
@@ -256,13 +278,15 @@ function findBestWorkingDay(
     return days
   }
 
-  // Best day among `days` that already has a stop within SAME_SECTOR_KM AND
-  // on the same river shore (see sameRiverShore) — null if none qualifies,
-  // so the caller can tell "no real match" apart from "just take the first
-  // day". A same-sector candidate on the opposite shore is never a match:
-  // it would look close on a straight-line map while actually needing its
-  // own bridge crossing, which is exactly the false clustering this guards
-  // against.
+  // Best day among `days` that already has a same-shore stop (see
+  // sameRiverShore) — null if none qualifies, so the caller can tell "no
+  // real match" apart from "just take the first day". A same-sector
+  // candidate on the opposite shore is never a match: it would look close
+  // on a straight-line map while actually needing its own bridge crossing,
+  // which is exactly the false clustering this guards against. When this
+  // stop itself requiresCrossing, any same-shore day qualifies regardless
+  // of distance (SAME_SECTOR_KM only gates the normal, no-crossing case) —
+  // still preferring the nearest such day when several qualify.
   const bestMatch = (days: Date[]): Date | null => {
     if (!address.geocodedCoords) return null
     let best: Date | null = null
@@ -282,7 +306,8 @@ function findBestWorkingDay(
           )
         )
       }, Infinity)
-      if (nearestKm <= SAME_SECTOR_KM && nearestKm < bestScore) {
+      const qualifies = requiresCrossing ? nearestKm < Infinity : nearestKm <= SAME_SECTOR_KM
+      if (qualifies && nearestKm < bestScore) {
         bestScore = nearestKm
         best = day
       }
