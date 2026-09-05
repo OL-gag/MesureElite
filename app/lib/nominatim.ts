@@ -43,7 +43,20 @@ function isCacheValid(timestamp: number): boolean {
   return Date.now() - timestamp < CACHE_TTL
 }
 
-async function fetchWithRetry(url: string, maxRetries = 3): Promise<Response> {
+// The public Nominatim server appears to serialize concurrent requests from
+// the same source rather than truly running them in parallel: a batch of N
+// street-type variants (see geocodeAddress) fired concurrently was observed
+// taking roughly N * 700ms end to end, not the ~700ms a real parallel
+// dispatch would take. Left unbounded, a single slow-to-be-served request
+// can push the whole call past Vercel's ~10s serverless function timeout,
+// which is what was surfacing as a generic "geocoding failed" error for real
+// addresses. A hard per-request timeout keeps that bounded — occasionally at
+// the cost of missing a street-type correction that happened to be served
+// last in Nominatim's queue, which is a far better trade than an opaque
+// crash (the user just sees "address not found" and can fix the typo).
+const REQUEST_TIMEOUT_MS = 4000
+
+async function fetchWithRetry(url: string, maxRetries = 1): Promise<Response> {
   let lastError: Error | null = null
 
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
@@ -53,6 +66,7 @@ async function fetchWithRetry(url: string, maxRetries = 3): Promise<Response> {
           'Accept': 'application/json',
           'User-Agent': 'MesureMG/1.0',
         },
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
       })
 
       if (response.status === 429) {
