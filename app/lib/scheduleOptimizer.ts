@@ -19,6 +19,32 @@ export const DEFAULT_CONSTRAINTS: ScheduleConstraints = {
 // days (see findBestWorkingDay).
 const SAME_SECTOR_KM = 20
 
+// Two real points on the St. Lawrence's course through Québec City: Pont
+// Pierre-Laporte (the road bridge — see NO_FERRY_VIA_POINT in osrm.ts) and
+// the midpoint of the old Québec-Lévis ferry crossing. A straight-line
+// "same sector" check (below) can't tell a Lévis/south-shore address from a
+// Québec-side one just across the water — they can be under 20km apart as
+// the crow flies while a real trip between them requires a bridge detour.
+// Used to keep pickBest from treating those as neighbors just because
+// they're geographically close on the map.
+const RIVER_ANCHOR_A = { lat: 46.745, lon: -71.29 }
+const RIVER_ANCHOR_B = { lat: 46.804, lon: -71.189 }
+
+// Sign of the cross product of (RIVER_ANCHOR_B - RIVER_ANCHOR_A) and
+// (point - RIVER_ANCHOR_A): positive on the north shore (Québec City side),
+// negative on the south shore (Lévis/Bellechasse side), for the stretch of
+// river this business actually crosses. Only meaningful near Québec City —
+// not a general-purpose geometry.
+function riverSideSign(lat: number, lon: number): number {
+  const dLon = RIVER_ANCHOR_B.lon - RIVER_ANCHOR_A.lon
+  const dLat = RIVER_ANCHOR_B.lat - RIVER_ANCHOR_A.lat
+  return dLon * (lat - RIVER_ANCHOR_A.lat) - dLat * (lon - RIVER_ANCHOR_A.lon)
+}
+
+function sameRiverShore(a: { lat: number; lon: number }, b: { lat: number; lon: number }): boolean {
+  return riverSideSign(a.lat, a.lon) >= 0 === riverSideSign(b.lat, b.lon) >= 0
+}
+
 // The schedule only needs the start address's coordinates, so accept anything
 // that carries them (the API hands us the raw request start point).
 export interface ScheduleStartPoint {
@@ -230,18 +256,22 @@ function findBestWorkingDay(
     return days
   }
 
-  // Prefer whichever candidate day already has a stop within SAME_SECTOR_KM;
-  // ties (including "no day is close enough") keep the earliest day, since
-  // `days` is in ascending date order and `<` only replaces on a strict
-  // improvement.
-  const pickBest = (days: Date[]): Date => {
-    if (!address.geocodedCoords) return days[0]
-    let best = days[0]
+  // Best day among `days` that already has a stop within SAME_SECTOR_KM AND
+  // on the same river shore (see sameRiverShore) — null if none qualifies,
+  // so the caller can tell "no real match" apart from "just take the first
+  // day". A same-sector candidate on the opposite shore is never a match:
+  // it would look close on a straight-line map while actually needing its
+  // own bridge crossing, which is exactly the false clustering this guards
+  // against.
+  const bestMatch = (days: Date[]): Date | null => {
+    if (!address.geocodedCoords) return null
+    let best: Date | null = null
     let bestScore = Infinity
     for (const day of days) {
       const dayAddresses = groups.get(formatDateToISO(day)) ?? []
       const nearestKm = dayAddresses.reduce((min, other) => {
         if (!other.geocodedCoords) return min
+        if (!sameRiverShore(address.geocodedCoords!, other.geocodedCoords)) return min
         return Math.min(
           min,
           haversineDistanceKm(
@@ -252,23 +282,33 @@ function findBestWorkingDay(
           )
         )
       }, Infinity)
-      const score = nearestKm <= SAME_SECTOR_KM ? nearestKm : Infinity
-      if (score < bestScore) {
-        bestScore = score
+      if (nearestKm <= SAME_SECTOR_KM && nearestKm < bestScore) {
+        bestScore = nearestKm
         best = day
       }
     }
     return best
   }
 
-  // Pass 1: keep the day at or under the soft target (5 by default).
   const softDays = collectValidDays(constraints.maxStopsPerDay)
-  if (softDays.length > 0) return pickBest(softDays)
-
-  // Pass 2: the soft target leaves no valid day in the window — allow up to
-  // the absolute ceiling (6) instead, since the deadline still has to be met.
   const hardDays = collectValidDays(constraints.absoluteMaxStopsPerDay)
-  if (hardDays.length > 0) return pickBest(hardDays)
+
+  // Prefer a genuine sector/shore match over just filling the earliest open
+  // day — even if that match is only available past the soft target (up to
+  // the absolute ceiling). Consolidating onto a day that already needs the
+  // same detour (e.g. the bridge to Lévis) beats sending the technician back
+  // to that sector on a separate, otherwise-empty day. Deadlines still bound
+  // both lists, so this never violates one.
+  const softMatch = bestMatch(softDays)
+  if (softMatch) return softMatch
+
+  const hardMatch = bestMatch(hardDays)
+  if (hardMatch) return hardMatch
+
+  // No day in the window shares this stop's sector — fall back to the
+  // earliest day with room, preferring the soft target.
+  if (softDays.length > 0) return softDays[0]
+  if (hardDays.length > 0) return hardDays[0]
 
   // Last resort: no capacity anywhere in the window even at the ceiling —
   // return latest allowed day (even if it ends up further overloaded), since
