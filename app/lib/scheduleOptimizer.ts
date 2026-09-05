@@ -331,9 +331,29 @@ function findBestWorkingDay(
   if (hardMatch) return hardMatch
 
   // No day in the window shares this stop's sector — fall back to the
-  // earliest day with room, preferring the soft target.
-  if (softDays.length > 0) return softDays[0]
-  if (hardDays.length > 0) return hardDays[0]
+  // emptiest day with room (ties broken by earliest), preferring the soft
+  // target. Not just the earliest day: two unrelated, both-isolated stops
+  // (e.g. Sainte-Anne-de-Beaupré and Portneuf, ~100km apart) would otherwise
+  // get stacked onto the same day just because it's chronologically first,
+  // producing one very long day instead of two short ones when an
+  // equally-valid emptier day exists in the window.
+  const emptiest = (days: Date[]): Date | null => {
+    if (days.length === 0) return null
+    let best = days[0]
+    let bestCount = groups.get(formatDateToISO(best))?.length ?? 0
+    for (const day of days.slice(1)) {
+      const count = groups.get(formatDateToISO(day))?.length ?? 0
+      if (count < bestCount) {
+        bestCount = count
+        best = day
+      }
+    }
+    return best
+  }
+  const emptiestSoft = emptiest(softDays)
+  if (emptiestSoft) return emptiestSoft
+  const emptiestHard = emptiest(hardDays)
+  if (emptiestHard) return emptiestHard
 
   // Last resort: no capacity anywhere in the window even at the ceiling —
   // return latest allowed day (even if it ends up further overloaded), since
