@@ -12,7 +12,7 @@ import { formatDateToISO } from './lib/utils'
 // Pre-fills the start/return address on a fresh visit (no sessionStorage
 // yet) so it doesn't need retyping every time — every measurement trip
 // starts and ends here.
-const DEFAULT_START_ADDRESS = '501 rue des Eaux-Fraîches, Lac-Saint-Charles, Québec, G2G 2Z4'
+const DEFAULT_START_ADDRESS = '501 rue des Eaux-Fraîches, Lac-Saint-Charles, Québec'
 
 export default function Home() {
   const router = useRouter()
